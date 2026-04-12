@@ -1,14 +1,7 @@
 # 智能研发资源排期系统 - 任务清单 (Task List)
 
 ## 阶段零：本地环境运行指南 (Phase 0: Local Environment Setup)
-- [x] **DONE** 0.1 本地环境安装与启动步骤记录。
-    - **环境要求**: Node.js (v18+), npm/pnpm.
-    - **启动步骤**:
-        1. 进入插件目录: `cd extension`
-        2. 安装依赖: `npm install`
-        3. 启动开发服务器 (热更新): `npm run dev`
-        4. 加载到浏览器: 打开 Chrome 浏览器，进入 `chrome://extensions/`，开启右上角的“开发者模式”，点击“加载已解压的扩展程序”，选择本项目下的 `extension/dist` (或使用 Vite 热更新支持的 `extension` 根目录/配置目录，取决于构建方式，使用 CRXjs 会实时输出到 dist，所以选择 `extension/dist`)。
-    - **打包构建**: `npm run build`，产物将生成在 `extension/dist` 目录下。
+- [x] **DONE** 0.1 本地环境安装与启动步骤已提取为独立文档：请参阅 [`docs/DEVELOPMENT.md`](./DEVELOPMENT.md)。
 
 ## 阶段一：项目初始化与基础设施 (Phase 1: Setup & Infrastructure)
 - [x] **DONE** 1.1 初始化 Vite + React + TypeScript 项目结构。
