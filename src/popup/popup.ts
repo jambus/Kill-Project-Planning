@@ -22,6 +22,7 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'info')
   const toast = $('toast');
   toast.textContent = message;
   toast.className = `toast toast-${type}`;
+  toast.classList.remove('hidden');
   setTimeout(() => toast.classList.add('hidden'), 3000);
 }
 

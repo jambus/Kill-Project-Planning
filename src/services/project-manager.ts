@@ -106,14 +106,14 @@ export class ProjectManager {
   }
 
   async applyAIPlan(projectId: string, plan: AIProjectPlan): Promise<Project> {
-    const milestones: Milestone[] = plan.milestones.map((m, mi) => ({
-      id: generateId(`ms-${mi}`),
+    const milestones: Milestone[] = plan.milestones.map((m, milestoneIndex) => ({
+      id: generateId(`ms-${milestoneIndex}`),
       title: m.title,
       description: m.description,
       targetDate: m.targetDate,
-      tasks: (m.tasks ?? []).map((t, ti) => ({
+      tasks: (m.tasks ?? []).map((t, taskIndex) => ({
         ...t,
-        id: generateId(`task-${mi}-${ti}`),
+        id: generateId(`task-${milestoneIndex}-${taskIndex}`),
         createdAt: new Date().toISOString(),
       })),
     }));
