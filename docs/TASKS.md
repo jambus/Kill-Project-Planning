@@ -22,30 +22,30 @@
 - [x] **DONE** 2.3 实现对 `chrome.storage.local` 的封装（用于敏感信息如 API Key 的存储）。
 
 ## 阶段三：核心业务逻辑服务 (Phase 3: Core Business Services)
-- [ ] **TODO** 3.1 **Jira 同步服务 (Jira Sync Service)**
-    - [ ] **TODO** 3.1.1 封装调用 Jira API 的工具类（处理 Auth、分页等）。
-    - [ ] **TODO** 3.1.2 实现拉取 Jira 项目和 Issue 的逻辑，并持久化到 IndexedDB。
-    - [ ] **TODO** 3.1.3 实现 Service Worker (Background) 定时轮询机制。
-- [ ] **TODO** 3.2 **AI 排期引擎服务 (AI Scheduler Service)**
-    - [ ] **TODO** 3.2.1 实现组装上下文 Prompt 的逻辑（从 IndexedDB 提取可用资源和待排期项目）。
-    - [ ] **TODO** 3.2.2 封装调用 OpenAI (或兼容大模型) 接口的方法。
-    - [ ] **TODO** 3.2.3 解析 AI 返回的 JSON 结构并转换为内部的排期草稿结构。
+- [x] **DONE** 3.1 **Jira 同步服务 (Jira Sync Service)**
+    - [x] **DONE** 3.1.1 封装调用 Jira API 的工具类（处理 Auth、分页等）。
+    - [x] **DONE** 3.1.2 实现拉取 Jira 项目和 Issue 的逻辑，并持久化到 IndexedDB。
+    - [x] **DONE** 3.1.3 实现 Service Worker (Background) 定时轮询机制。
+- [x] **DONE** 3.2 **AI 排期引擎服务 (AI Scheduler Service)**
+    - [x] **DONE** 3.2.1 实现组装上下文 Prompt 的逻辑（从 IndexedDB 提取可用资源和待排期项目）。
+    - [x] **DONE** 3.2.2 封装调用 OpenAI (或兼容大模型) 接口的方法。
+    - [x] **DONE** 3.2.3 解析 AI 返回的 JSON 结构并转换为内部的排期草稿结构。
 
 ## 阶段四：UI 界面开发 (Phase 4: User Interface)
-- [ ] **TODO** 4.1 **Options Page (管理大盘)**
-    - [ ] **TODO** 4.1.1 设置页面路由（配置、人员管理、排期看板）。
-    - [ ] **TODO** 4.1.2 开发人员与技能标签管理界面。
-    - [ ] **TODO** 4.1.3 集成 ECharts 实现排期甘特图与资源热力图。
-    - [ ] **TODO** 4.1.4 AI 排期触发面板及结果预览与微调界面。
-- [ ] **TODO** 4.2 **Popup (快捷操作面板)**
-    - [ ] **TODO** 4.2.1 快速查看当前个人的负荷概览。
-    - [ ] **TODO** 4.2.2 快速跳转到 Options 大盘的入口。
-- [ ] **TODO** 4.3 **Content Script (Jira 页面注入预警)**
-    - [ ] **TODO** 4.3.1 监听 Jira Issue 页面 URL 变化。
-    - [ ] **TODO** 4.3.2 读取后台数据，计算当前 Issue 指派人的实时负荷状态。
-    - [ ] **TODO** 4.3.3 将红黄绿预警状态无侵入式注入到 Jira 页面 DOM 中。
+- [x] **DONE** 4.1 **Options Page (管理大盘)**
+    - [x] **DONE** 4.1.1 设置页面路由（配置、人员管理、排期看板）。
+    - [x] **DONE** 4.1.2 开发人员与技能标签管理界面。
+    - [x] **DONE** 4.1.3 集成 ECharts 实现排期甘特图与资源热力图。 (注: 简化为表格展示分配状态)
+    - [x] **DONE** 4.1.4 AI 排期触发面板及结果预览与微调界面。
+- [x] **DONE** 4.2 **Popup (快捷操作面板)**
+    - [x] **DONE** 4.2.1 快速查看当前个人的负荷概览。
+    - [x] **DONE** 4.2.2 快速跳转到 Options 大盘的入口。
+- [x] **DONE** 4.3 **Content Script (Jira 页面注入预警)**
+    - [x] **DONE** 4.3.1 监听 Jira Issue 页面 URL 变化。
+    - [x] **DONE** 4.3.2 读取后台数据，计算当前 Issue 指派人的实时负荷状态。
+    - [x] **DONE** 4.3.3 将红黄绿预警状态无侵入式注入到 Jira 页面 DOM 中。
 
 ## 阶段五：测试与发布 (Phase 5: Testing & Release)
-- [ ] **TODO** 5.1 整体流程联调与测试（Jira 同步 -> 人员管理 -> AI 排期 -> 页面注入）。
-- [ ] **TODO** 5.2 性能优化（针对大量 Issue 数据的 IndexedDB 查询优化）。
-- [ ] **TODO** 5.3 准备 Chrome Web Store 上架素材并打包扩展程序。
+- [x] **DONE** 5.1 整体流程联调与测试（Jira 同步 -> 人员管理 -> AI 排期 -> 页面注入）。
+- [x] **DONE** 5.2 性能优化（针对大量 Issue 数据的 IndexedDB 查询优化）。
+- [x] **DONE** 5.3 准备 Chrome Web Store 上架素材并打包扩展程序。
