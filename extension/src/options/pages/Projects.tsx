@@ -1,6 +1,8 @@
+import { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import { FolderKanban, Info } from 'lucide-react';
+import { FolderKanban, Info, UploadCloud } from 'lucide-react';
+import { importProjectsFromFile } from '../../services/fileImport';
 
 const priorityWeight: Record<string, number> = {
   'High': 3,
@@ -21,21 +23,70 @@ const getPriorityWeight = (p: string) => {
 
 export const Projects = () => {
   const projects = useLiveQuery(() => db.projects.toArray());
+  const [isImporting, setIsImporting] = useState(false);
+  const [message, setMessage] = useState<{type: 'success'|'error', text: string} | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sortedProjects = projects?.sort((a, b) => {
     return getPriorityWeight(b.priority) - getPriorityWeight(a.priority);
   });
 
+  const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const count = await importProjectsFromFile(file);
+      setMessage({ type: 'success', text: `成功导入 ${count} 个排期项目！` });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: `导入失败: ${err.message}` });
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''; // reset input
+      }
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-start">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">项目管理</h2>
           <p className="text-gray-500 mt-1">查看待排期的项目详情及其优先级（按优先级从高到低排序）</p>
         </div>
-        <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg flex items-center space-x-2 text-sm font-medium border border-blue-100">
-          <FolderKanban size={18} />
-          <span>共计 {projects?.length || 0} 个项目</span>
+        <div className="flex flex-col items-end space-y-2">
+          <div className="flex items-center space-x-3">
+            <input 
+              type="file" 
+              accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleFileImport}
+              disabled={isImporting}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isImporting}
+              className="flex items-center space-x-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg disabled:opacity-50 transition-colors shadow-sm"
+            >
+              <UploadCloud size={18} />
+              <span>{isImporting ? '正在导入...' : '导入项目 (CSV/Excel)'}</span>
+            </button>
+            <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg flex items-center space-x-2 text-sm font-medium border border-blue-100">
+              <FolderKanban size={18} />
+              <span>共计 {projects?.length || 0} 个项目</span>
+            </div>
+          </div>
+          {message && (
+            <div className={`px-3 py-1 rounded text-xs font-medium animate-in fade-in slide-in-from-top-1 duration-200 ${
+              message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+            }`}>
+              {message.text}
+            </div>
+          )}
         </div>
       </div>
 
@@ -60,7 +111,7 @@ export const Projects = () => {
                   <td colSpan={8} className="p-12 text-center">
                     <div className="flex flex-col items-center justify-center text-gray-400 space-y-2">
                       <Info size={40} className="opacity-20" />
-                      <p>暂无项目数据，请前往“系统设置”上传文件导入。</p>
+                      <p>暂无项目数据，请点击上方按钮导入 CSV/Excel 文件。</p>
                     </div>
                   </td>
                 </tr>
