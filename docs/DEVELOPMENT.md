@@ -50,12 +50,13 @@
     ```
     此命令会先执行 TypeScript 类型检查 (`tsc -b`)，然后使用 Vite 进行生产级别压缩和打包。产物将生成在 `extension/dist` 目录下。
 
-2.  **打包为 ZIP (准备上架)**:
+2. **打包为 ZIP (准备上架)**:
     ```bash
     cd extension/dist
-    zip -r ../intelligent-resource-planner-v1.0.0.zip .
+    mkdir -p ../release
+    zip -r ../release/intelligent-resource-planner-v1.0.0.zip .
     ```
-    生成的 ZIP 文件即可用于上传至 Chrome Web Store 或直接分发给用户进行本地拖拽安装。
+    生成的 ZIP 文件位于 `extension/release/` 目录下，即可用于上传至 Chrome Web Store 或直接分发给用户进行本地拖拽安装。
 
 ## 4. 技术栈速览 (Tech Stack Overview)
 
