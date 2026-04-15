@@ -41,7 +41,8 @@
 
 ## 3. 生产环境构建与打包 (Production Build & Packaging)
 
-当开发完成，准备发布新版本时，需要进行生产环境构建：
+**⚠️ 交付要求 (Delivery Requirement):**
+> **每次修改完核心功能代码后，必须重新执行生产构建并更新 release 目录下的 ZIP 包**，以确保分发产物与最新代码同步。
 
 1.  **执行构建命令**:
     ```bash
@@ -50,10 +51,11 @@
     ```
     此命令会先执行 TypeScript 类型检查 (`tsc -b`)，然后使用 Vite 进行生产级别压缩和打包。产物将生成在 `extension/dist` 目录下。
 
-2. **打包为 ZIP (准备上架)**:
+2. **打包为 ZIP 并更新 Release**:
     ```bash
     cd extension/dist
     mkdir -p ../release
+    # 覆盖更新 release 目录下的压缩包
     zip -r ../release/intelligent-resource-planner-v1.0.0.zip .
     ```
     生成的 ZIP 文件位于 `extension/release/` 目录下，即可用于上传至 Chrome Web Store 或直接分发给用户进行本地拖拽安装。
