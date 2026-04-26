@@ -21,7 +21,8 @@ export const getAISettings = async (): Promise<AISettings | null> => {
  */
 export const generateSchedule = async (
   resources: Resource[],
-  projects: Project[]
+  projects: Project[],
+  year: number
 ): Promise<Partial<Allocation>[]> => {
   const settings = await getAISettings();
   if (!settings) {
@@ -32,6 +33,9 @@ export const generateSchedule = async (
 You are an expert AI Project Resource Scheduler.
 Your task is to assign the available resources to the given projects based on priority and skills.
 
+**CURRENT YEAR: ${year}**
+All scheduling must happen within the year ${year}.
+
 Available Resources:
 ${JSON.stringify(resources, null, 2)}
 
@@ -40,8 +44,10 @@ ${JSON.stringify(projects, null, 2)}
 
 Rules:
 1. Max total capacity for a resource across all projects at any time is 100%.
-2. Try to match roles/skills if applicable (e.g., Frontend to UI tasks, though our projects are high-level right now).
-3. Return ONLY a valid JSON array of objects representing the allocations. Do NOT wrap it in markdown code blocks.
+2. Try to match roles/skills if applicable.
+3. **IMPORTANT**: All "startDate" and "endDate" MUST be in the format "YYYY-MM-DD" and the year MUST be ${year}.
+4. If a project has "Apr" as start month, use "${year}-04-01". If it has "Jun" as end month, use "${year}-06-30".
+5. Return ONLY a valid JSON array of objects representing the allocations. Do NOT wrap it in markdown code blocks.
 
 JSON Schema per allocation object:
 {

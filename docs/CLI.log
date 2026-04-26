@@ -1,5 +1,4 @@
-Agent powering down. Goodbye!                                                                                                                                                                           │
-│                                                                                                                                                                                                          │
+                                                                                                                                                                       ││                                                                                                                                                                                                          │
 │  Interaction Summary                                                                                                                                                                                     │
 │  Session ID:                 878a8cf3-c6bd-4ae6-a4c3-f39c8348438e                                                                                                                                        │
 │  Tool Calls:                 173 ( ✓ 171 x 2 )                                                                                                                                                           │
@@ -22,3 +21,35 @@ Agent powering down. Goodbye!                                                   
 │  Savings Highlight: 8,082,228 (77.7%) of input tokens were served from the cache, reducing costs.                                                                                                        │
 │                                                                                                                                                                                                          │
 │  To resume this session: gemini --resume 878a8cf3-c6bd-4ae6-a4c3-f39c8348438e     
+
+
+
+
+Interaction Summary                                                                                                                                                                                     │
+│  Session ID:                 3c59ee2c-1987-4aeb-8851-e5ba7d90f322                                                                                                                                        │
+│  Tool Calls:                 19 ( ✓ 19 x 0 )                                                                                                                                                             │
+│  Success Rate:               100.0%                                                                                                                                                                      │
+│  User Agreement:             100.0% (19 reviewed)                                                                                                                                                        │
+│  Code Changes:               +67 -64                                                                                                                                                                     │
+│                                                                                                                                                                                                          │
+│  Performance                                                                                                                                                                                             │
+│  Wall Time:                  56m 37s                                                                                                                                                                     │
+│  Agent Active:               3m 21s                                                                                                                                                                      │
+│    » API Time:               3m 6s (92.2%)                                                                                                                                                               │
+│    » Tool Time:              15.8s (7.8%)                                                                                                                                                                │
+│                                                                                                                                                                                                          │
+│                                                                                                                                                                                                          │
+│  Model Usage                                                                                                                                                                                             │
+│  Use /model to view model quota information                                                                                                                                                              │
+│                                                                                                                                                                                                          │
+│  Model                           Reqs  Input Tokens   Cache Reads Output Tokens                                                                                                                          │
+│  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  │
+│  gemini-2.5-flash-lite             16        21,729             0           475                                                                                                                          │
+│    ↳ utility_router                15        20,348             0           465                                                                                                                          │
+│    ↳ utility_summarizer             1         1,381             0            10                                                                                                                          │
+│  gemini-3-flash-preview            22       409,884       299,604         7,217                                                                                                                          │
+│    ↳ main                          20       372,678       299,604         5,805                                                                                                                          │
+│    ↳ utility_compressor             2        37,206             0         1,412                                                                                                                          │
+│  gemini-3.1-pro-preview             7       130,312        96,691           307                                                                                                                          │
+│    ↳ main                           7       130,312        96,691           307                                                                                                                          │
+│  To resume this session: gemini --resume 3c59ee2c-1987-4aeb-8851-e5ba7d90f322 

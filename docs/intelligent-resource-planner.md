@@ -111,7 +111,12 @@ graph TD
 *   **API Key 存储**：引导用户输入其私有的 OpenAI API Key，并安全地存储在 `chrome.storage.local` 中（该存储空间不与网页共享，相对安全）。
 *   **排期算法依赖**：前端组装 Prompt 时将导入的评估工时（`devTotalMd`, `testTotalMd`）直接喂给大模型，使得模型能够输出更合理的周期和投入占比（`allocationPercentage`）。
 
-#### 3.3.3 Content Script 预警注入
-*   插件的 Content Script 会监听页面 DOM 变化（特别是 Jira 的 `[data-testid="issue.views.field.user.assignee"]` 元素）。
+#### 3.3.3 月度资源投入计算 (Monthly Allocated MD Calculation)
+*   **动态年份选择**：系统支持用户在「全局排期大盘」选择排期年份，可选范围为当前年份的前后各一年（如 2025, 2026, 2027）。
+*   **按月展示投入人天**：在大盘视图中，除了展示周期和投入占比，还需要计算每个自然月内的实际投入人天（Man-Days）。
+*   **工作日逻辑**：计算必须排除周末，并能够识别和扣除法定节假日（如清明节、劳动节等）。
+*   **动态计算公式**：`月度投入人天 = 该月内项目重叠的工作日天数 * 投入占比 %`。
+
+#### 3.3.4 Content Script 预警注入
 *   当识别到具体的处理人姓名时，异步查询 IndexedDB 计算其当前所有进行中项目分配累加的负荷百分比。
 *   将负荷情况以不侵入原有 DOM 结构的方式，在页面右下角以红/黄/绿悬浮卡片展示预警。
