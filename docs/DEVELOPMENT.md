@@ -60,7 +60,16 @@
     ```
     生成的 ZIP 文件位于 `extension/release/` 目录下，即可用于上传至 Chrome Web Store 或直接分发给用户进行本地拖拽安装。
 
-## 4. 技术栈速览 (Tech Stack Overview)
+## 4. 项目结构 (Project Structure)
+
+*   `extension/src/`: 核心源代码（包含 Background, Content Scripts, Options Page, Popup）。
+*   `extension/src/db/`: 数据库 Schema 定义与 Dexie 服务。
+*   `extension/src/services/`: AI 排期逻辑、文件导入解析及 Jira API 工具类。
+*   `docs/DEVELOPMENT.md`: **关键** - 详细的本地开发、环境搭建与构建指令。
+*   `docs/intelligent-resource-planner.md`: 完整的 PRD、系统架构图及详细设计规范。
+*   `docs/TASKS.md`: 项目路线图及当前任务状态。
+
+## 5. 技术栈速览 (Tech Stack Overview)
 
 *   **框架**: React 19 + TypeScript + Vite 4
 *   **插件构建**: `@crxjs/vite-plugin` (Manifest V3)
