@@ -23,7 +23,7 @@
 #### 1.4.1 标准角色定义 (Standard Roles)
 系统预设以下 5 种标准研发角色，并自动与项目工时评估（MD）进行匹配：
 *   **前端工程师 / 后端工程师 / APP工程师**：属于开发力量，主要负责 `devTotalMd`（开发工时）。
-*   **全栈工程师**：**属于开发力量**，具有通用性，可同时参与前端或后端的 `devTotalMd` 任务。当开发资源饱和时，也可协助 `testTotalMd`。
+*   **全栈工程师**：**属于开发力量**，具有通用性，可同时参与前端或后端的 `devTotalMd` 任务。当开发资源饱和时，也可灵活协助 `testTotalMd`。
 *   **测试工程师**：专门负责 `testTotalMd`（测试工时）。
 
 #### 1.4.2 资源缺口与闲置分析 (Gap & Idle Analysis)
@@ -56,26 +56,26 @@ graph TD
     LLM[AI 大模型服务 / OpenAI API]
     
     %% Chrome 插件内部架构
-    subgraph ChromeExtension [Chrome 浏览器插件环境]
+    subgraph ChromeExtension ["Chrome 浏览器插件环境"]
         
         %% UI 视图层
-        subgraph Views [视图层 (React)]
-            OptionsPage[全局仪表盘 (Dashboard)]
-            ProjectMgmt[项目管理 (Projects)]
-            ResourcesMgmt[人员管理 (Resources)]
-            SettingsPage[系统设置 (Settings)]
-            Popup[快捷操作面板 (Popup)]
-            ContentScript[Jira 页面 UI 注入 (Content Script)]
+        subgraph Views ["视图层 (React)"]
+            OptionsPage[全局仪表盘]
+            ProjectMgmt[项目管理]
+            ResourcesMgmt[人员管理]
+            SettingsPage[系统设置]
+            Popup[快捷操作面板]
+            ContentScript[Jira 页面 UI 注入]
         end
         
         %% 后台服务层
-        subgraph Background [后台进程 (Service Worker)]
+        subgraph Background ["后台进程 (Service Worker)"]
             ImportEngine[本地文件导入引擎]
             AIEngine[AI 排期调度引擎]
         end
         
         %% 本地数据层
-        subgraph LocalStorage [浏览器本地存储]
+        subgraph LocalStorage ["浏览器本地存储"]
             IndexedDB[(IndexedDB - 大容量关系数据)]
             ChromeStorage[(Chrome.storage.local - 配置项)]
         end
@@ -96,43 +96,46 @@ graph TD
 
 ---
 
-## 三、 技术设计文档 (Technical Design)
+## 三、 关键技术方案 (Key Technical Solutions)
 
-### 3.1 技术栈选择 (Tech Stack)
-*   **核心框架**：React 19 + Vite 4 + CRXjs (现代 Chrome 插件构建工具)。
-*   **UI 组件库**：Tailwind CSS v3 (轻量级样式), Lucide React (图标)。
-*   **数据解析**: `xlsx` 库，用于在浏览器端解析 CSV 和 Excel 文件。
-*   **本地数据库**：Dexie.js (对 IndexedDB 的极简封装，支持类似于关系型数据库的查询操作)，用于存储结构化的项目和资源数据。
-*   **状态与配置管理**：`chrome.storage.local` 用于安全存储用户配置、OpenAI API Key 等。
-*   **AI 接口**：直接使用 Fetch API 调用 OpenAI 或其他兼容的 LLM REST API (如 DeepSeek, Qwen 等)，支持自定义 Base URL 和模型名称。
-
-### 3.2 核心数据模型 (IndexedDB Schema - Dexie.js v2)
-数据结构在前端的 IndexedDB 中定义。
-*   `Settings`: 存储配置（也可以直接放 `chrome.storage.local`）。
-*   `Resources`: 研发人员表（包含姓名、角色、可用工时、能力标签 JSON）。
-*   `Projects` (v2): 项目表，对齐导入文件的列（`name`, `businessOwner`, `priority`, `status`, `digitalResponsible`, `startDate`, `endDate`, `comments`, `devTotalMd`, `testTotalMd`）。
-*   **导入样例 (Import Sample)**:
-    | Project | Business Owner | Priority Proposal | Status | Digital Responsible | Start In | End In | Estimated Go-live time | Comments | Jira Epic Key | Total Dev MD | Total Test MD |
-    | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-    | 618 Campaign digital capabilities optimization | Digital | Must Win | Design | Zac CAI | Apr | Jun | Jun | | COMMON | 10 | 5 |
-    | Ingress Nginx Migration | Digital | Compliance | Development | Justin XU | | | May | | Ingress | 10 | 5 |
-*   `Allocations`: 资源分配表（关联 Resource ID, Project ID，分配的开始-结束日期，投入工时比例）。
-
-### 3.3 关键技术方案 (Key Technical Solutions)
 #### 3.3.1 本地文件导入与项目管理
 *   **优先级逻辑**：系统严格遵循「从上到下」的物理顺序规则。文件导入时，排在顶部的项目具有最高优先级。
 *   **展示与排期一致性**：无论是「项目管理」页面的列表展示，还是「全局排期大盘」的 AI 自动排期，都统一使用数据库自增 ID 作为顺序基准，确保 UI 显示顺序、业务优先级顺序与 AI 逻辑完全对齐。
 
-#### 3.3.2 安全的 AI 调用与精准排期
-*   **API Key 存储**：引导用户输入其私有的 OpenAI API Key，并安全地存储在 `chrome.storage.local` 中（该存储空间不与网页共享，相对安全）。
-*   **排期算法依赖**：前端组装 Prompt 时将导入的评估工时（`devTotalMd`, `testTotalMd`）直接喂给大模型，使得模型能够输出更合理的周期和投入占比（`allocationPercentage`）。
+#### 3.3.2 多阶段迭代排期架构 (Iterative AI Scheduling)
+为了解决单次调用 AI 容易产生的漏排、少排问题，系统采用「初稿 -> 审计 -> 补排」的迭代架构：
+
+```mermaid
+graph TD
+    Start([点击一键排期]) --> Prep[准备待排项目 & 人员数据]
+    Prep --> Phase1["<b>Phase 1: 全局初稿</b><br/>AI 生成基础分配方案"]
+    Phase1 --> Save1[解析并初步保存至 IndexedDB]
+    
+    Save1 --> Audit["<b>Local Audit: 自动化审计</b><br/>本地逻辑计算 MD 缺口与人员碎片时间"]
+    
+    Audit --> Check{是否存在残余缺口<br/>且人员有余力?}
+    
+    Check -- 是 --> Phase2["<b>Phase 2: 精准补排</b><br/>针对性发送缺口数据给 AI 填空"]
+    Phase2 --> Save2[追加保存补排分配项]
+    
+    Check -- 否 --> End([完成排期])
+    Save2 --> End
+    
+    End --> Refresh[更新仪表盘大盘展示]
+```
+
+1.  **Drafting Phase (初稿)**：AI 根据全局数据生成第一版分配方案，优先满足高优先级项目的核心工时。
+2.  **Hard-coded Audit (硬审计)**：系统利用本地代码逻辑，精确计算各项目的剩余 MD 缺口及各资源的碎片化空闲时间。
+3.  **Refinement Phase (补排)**：将审计出的「残余缺口」与「闲置资源」再次发送给 AI，执行专项补排指令，消除分配盲区。
 
 #### 3.3.3 月度资源投入计算 (Monthly Allocated MD Calculation)
+*   **基准年份**：系统当前以 **2026 年** 为基准年份进行所有排期和计算。
 *   **最小排期单位**：系统以 **1 天 (Integer)** 为最小排期和展示单位。
 *   **取整规则**：所有排期生成的人天、月度统计及审计差值均进行四舍五入取整，不保留小数点，确保排期结果符合实际执行习惯。
 *   **工作日逻辑**：计算必须排除周末，并能够识别和扣除法定节假日（如清明节、劳动节等）。
 *   **动态计算公式**：`月度投入人天 = 该月内项目重叠的工作日天数 * 投入占比 %`。
 
 #### 3.3.4 Content Script 预警注入
+*   插件的 Content Script 会监听页面 DOM 变化（特别是 Jira 的 `[data-testid="issue.views.field.user.assignee"]` 元素）。
 *   当识别到具体的处理人姓名时，异步查询 IndexedDB 计算其当前所有进行中项目分配累加的负荷百分比。
 *   将负荷情况以不侵入原有 DOM 结构的方式，在页面右下角以红/黄/绿悬浮卡片展示预警。

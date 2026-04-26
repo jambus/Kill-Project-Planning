@@ -17,60 +17,26 @@ export const getAISettings = async (): Promise<AISettings | null> => {
 };
 
 /**
- * Generate a schedule using AI (OpenAI compatible)
+ * Robust JSON extraction from AI response
  */
-export const generateSchedule = async (
-  resources: Resource[],
-  projects: Project[],
-  year: number
-): Promise<Partial<Allocation>[]> => {
-  const settings = await getAISettings();
-  if (!settings) {
-    throw new Error('AI API Key is not configured. Please set it in Options.');
+const extractJsonArray = (text: string): any[] => {
+  try {
+    // Attempt to find the first '[' and last ']'
+    const start = text.indexOf('[');
+    const end = text.lastIndexOf(']');
+    if (start === -1 || end === -1) {
+      console.error('[AI Parser] No JSON array found in text:', text);
+      return [];
+    }
+    const jsonStr = text.substring(start, end + 1);
+    return JSON.parse(jsonStr);
+  } catch (err) {
+    console.error('[AI Parser] JSON parse error:', err, 'Raw text:', text);
+    return [];
   }
+};
 
-  const projectsWithPriority = projects.map((p, index) => ({
-    ...p,
-    priorityOrder: index + 1
-  }));
-
-  const prompt = `
-You are an expert Project Resource Optimizer. 
-Goal: Eliminate project MD gaps using 100% of available resource capacity for the year ${year}.
-
-### DATA
-1. **Resources**: ${JSON.stringify(resources)}
-2. **Projects**: ${JSON.stringify(projectsWithPriority)}
-
-### CRITICAL RULES (STRICT ADHERENCE REQUIRED)
-1. **NO ZERO-DAY ALLOCATIONS**: Every allocation MUST result in at least 1 Man-Day (MD). If an allocation would result in 0 MD, DO NOT INCLUDE IT.
-2. **GREEDY GAP FILLING**: If a project has a gap (devTotalMd or testTotalMd) AND a resource with a matching role has idle capacity (>0%), you MUST assign that resource to that project until the gap is 0 or the resource is at 100% load.
-3. **MANDATORY UTILIZATION**: Do not leave any relevant resource idle if there are projects with remaining MD requirements. 
-4. **INTEGER MATH**: The formula (Working Days * allocationPercentage / 100) MUST result in an INTEGER >= 1.
-5. **ROLE MAPPING**:
-   - 前端/后端/APP/全栈工程师 -> devTotalMd.
-   - 测试工程师 -> testTotalMd.
-   - Fullstack (全栈) can help with testTotalMd ONLY if all devTotalMd is 100% satisfied.
-6. **STRICT PRIORITY**: Solve priorityOrder 1 completely before moving to 2.
-
-### Output Format
-Return ONLY a valid JSON array. No text, no markdown.
-JSON Schema:
-[
-  {
-    "resourceId": number,
-    "projectId": number,
-    "allocationPercentage": number,
-    "startDate": "YYYY-MM-DD",
-    "endDate": "YYYY-MM-DD",
-    "reason": "Explain why this allocation is >= 1 MD and how it fills the gap."
-  }
-]
-`;
-
-  console.group('🤖 AI Optimization Engine');
-  console.log('[AI] Request Year:', year);
-  
+const callAI = async (systemMsg: string, prompt: string, settings: AISettings) => {
   const url = `${settings.baseUrl.replace(/\/$/, '')}/chat/completions`;
   const response = await fetch(url, {
     method: 'POST',
@@ -81,35 +47,83 @@ JSON Schema:
     body: JSON.stringify({
       model: settings.model,
       messages: [
-        { 
-          role: 'system', 
-          content: "You are a resource-hungry optimizer. Your absolute priority is to ensure NO project has a gap while resources are idle. Every single allocation you return MUST represent at least 1 full working day. Never return 0-day allocations." 
-        }, 
+        { role: 'system', content: systemMsg }, 
         { role: 'user', content: prompt }
       ],
-      temperature: 0.05, // Ultra-low for logic precision
+      temperature: 0.1,
     })
   });
 
   if (!response.ok) {
     const errorBody = await response.text();
-    console.error('[AI] API Error:', response.status);
-    console.groupEnd();
-    throw new Error(`OpenAI API Error: ${response.status} - ${errorBody}`);
+    throw new Error(`AI API Error: ${response.status} - ${errorBody}`);
   }
 
   const data = await response.json();
   const rawContent = data.choices[0].message.content.trim();
+  console.log('[AI Service] 📥 Raw content received:', rawContent);
   
-  try {
-    const cleanContent = rawContent.replace(/^```json/, '').replace(/```$/, '').trim();
-    const allocations = JSON.parse(cleanContent) as Partial<Allocation>[];
-    console.log('[AI] Generated Allocations:', allocations);
-    console.groupEnd();
-    return allocations;
-  } catch (err) {
-    console.error('[AI] Parse Error. Raw content:', rawContent);
-    console.groupEnd();
-    throw new Error('AI returned an invalid JSON format.');
-  }
+  return extractJsonArray(rawContent);
+};
+
+/**
+ * Phase 1: Draft the initial global schedule
+ */
+export const draftInitialSchedule = async (
+  resources: Resource[],
+  projects: Project[],
+  year: number
+): Promise<Partial<Allocation>[]> => {
+  const settings = await getAISettings();
+  if (!settings) throw new Error('AI API Key is not configured.');
+
+  const prompt = `
+Generate a resource plan for the year ${year}.
+Resources: ${JSON.stringify(resources)}
+Projects: ${JSON.stringify(projects.map((p, i) => ({ ...p, priorityOrder: i + 1 })))}
+
+Rules:
+1. Every allocation MUST result in at least 1 Man-Day (Working Days * % / 100 >= 1).
+2. Use "resourceId" and "projectId".
+3. "startDate" and "endDate" format: YYYY-MM-DD.
+
+Return JSON Array:
+[{"resourceId": 1, "projectId": 1, "allocationPercentage": 100, "startDate": "2026-04-01", "endDate": "2026-04-14", "reason": "..."}]
+`;
+
+  console.log('[AI Phase 1] Starting initial draft pass...');
+  return await callAI(
+    "You are an expert scheduler. Return ONLY a JSON array of project allocations.",
+    prompt,
+    settings
+  );
+};
+
+/**
+ * Phase 2: Refine specific gaps
+ */
+export const refineGaps = async (
+  gaps: any[], 
+  idleResources: any[],
+  year: number
+): Promise<Partial<Allocation>[]> => {
+  const settings = await getAISettings();
+  if (!settings) throw new Error('AI API Key is not configured.');
+
+  const prompt = `
+GAP FILLING. Use idle capacity to satisfy remaining MD.
+Year: ${year}
+Remaining Gaps: ${JSON.stringify(gaps)}
+Idle Resources: ${JSON.stringify(idleResources)}
+
+Goal: Return NEW allocations (at least 1 MD each) to fill the gaps.
+Return JSON Array only.
+`;
+
+  console.log('[AI Phase 2] Starting refinement pass...');
+  return await callAI(
+    "You are a gap-filling specialist. Focus purely on using idle resources to reduce remaining project gaps.",
+    prompt,
+    settings
+  );
 };
