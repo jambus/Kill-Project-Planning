@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { generateSchedule } from '../../services/ai';
-import { Play, AlertCircle, Users, ChevronDown, ArrowRight, ClipboardList, AlertTriangle, FileWarning, Search } from 'lucide-react';
+import { Play, Users, ChevronDown, ArrowRight, ClipboardList, AlertTriangle, FileWarning, Search, TriangleAlert } from 'lucide-react';
 import { calculateMonthlyMD, getWorkingDays } from '../../utils/dateUtils';
 
 export const Dashboard = () => {
@@ -12,6 +12,7 @@ export const Dashboard = () => {
   
   const [isScheduling, setIsScheduling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -34,7 +35,7 @@ export const Dashboard = () => {
     return list;
   }, [selectedYear, startMonth, endMonth]);
 
-  // --- Project Filtering & Gap Analysis Logic ---
+  // --- Gap Analysis Logic ---
 
   const { readyProjects, pendingProjects, projectGaps, resourceIdle } = useMemo(() => {
     if (!projects || !resources || !allocations) {
@@ -98,6 +99,8 @@ export const Dashboard = () => {
     console.group('🚀 AI 智能排期流程启动');
     setIsScheduling(true);
     setError(null);
+    setShowErrorModal(false);
+
     try {
       console.log('[Dashboard] 🧹 Cleaning up existing allocations...');
       await db.allocations.clear();
@@ -109,7 +112,6 @@ export const Dashboard = () => {
       
       for (const alloc of newAllocations) {
         if (alloc.resourceId && alloc.projectId && alloc.startDate && alloc.endDate) {
-          // Double check the MD calculation on the client side
           const workingDays = getWorkingDays(new Date(alloc.startDate), new Date(alloc.endDate));
           const calculatedMd = Math.round((workingDays * (alloc.allocationPercentage || 0)) / 100);
           
@@ -122,8 +124,6 @@ export const Dashboard = () => {
               endDate: alloc.endDate,
             });
             savedCount++;
-          } else {
-            console.warn('[Dashboard] ⚠️ Filtering out invalid 0-day allocation:', alloc);
           }
         }
       }
@@ -131,6 +131,7 @@ export const Dashboard = () => {
     } catch (err: any) {
       console.error('[Dashboard] ❌ Scheduling Failed:', err);
       setError(err.message);
+      setShowErrorModal(true);
     } finally {
       setIsScheduling(false);
       console.groupEnd();
@@ -188,10 +189,46 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md flex items-start space-x-3 text-sm">
-          <AlertCircle className="text-red-500 mt-0.5" size={18} />
-          <p className="text-red-700 font-medium">{error}</p>
+      {/* Error Modal */}
+      {showErrorModal && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-200">
+          <div className="bg-white p-0 rounded-3xl shadow-2xl w-[500px] overflow-hidden transform animate-in zoom-in-95 duration-200 border border-red-100">
+            <div className="bg-red-50 p-6 flex items-center space-x-4 border-b border-red-100">
+              <div className="p-3 bg-red-100 rounded-2xl text-red-600">
+                <TriangleAlert size={24} />
+              </div>
+              <h3 className="text-lg font-black text-red-900">AI 智能排期出错</h3>
+            </div>
+            <div className="p-8">
+              <p className="text-gray-600 text-sm leading-relaxed mb-6">
+                系统在与 AI 排期引擎通信时遇到了问题。这通常是由于 API Key 配置错误、余额不足或网络波动导致的。
+              </p>
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-8">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">错误详细信息 (Error Stack):</p>
+                <code className="text-xs text-red-600 break-words block font-mono">
+                  {error || '未知错误类型'}
+                </code>
+              </div>
+              <div className="flex space-x-3">
+                <button 
+                  onClick={() => setShowErrorModal(false)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-3 rounded-2xl font-bold text-sm transition-all"
+                >
+                  我知道了
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowErrorModal(false);
+                    // Open settings directly
+                    window.location.hash = '#/settings';
+                  }}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-2xl font-bold text-sm shadow-lg shadow-blue-100 transition-all"
+                >
+                  去检查系统设置
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
