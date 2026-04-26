@@ -14,7 +14,9 @@ const priorityWeight: Record<string, number> = {
   'P0': 4,
   'P1': 3,
   'P2': 2,
-  'P3': 1
+  'P3': 1,
+  'Must Win': 5,
+  'Compliance': 4
 };
 
 const getPriorityWeight = (p: string) => {
@@ -22,14 +24,15 @@ const getPriorityWeight = (p: string) => {
 };
 
 export const Projects = () => {
+  // Use projects directly as they are stored in the order of insertion (ID)
   const projects = useLiveQuery(() => db.projects.toArray());
   const [isImporting, setIsImporting] = useState(false);
   const [message, setMessage] = useState<{type: 'success'|'error', text: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const sortedProjects = projects?.sort((a, b) => {
-    return getPriorityWeight(b.priority) - getPriorityWeight(a.priority);
-  });
+  // We no longer manually sort here because the physical order in CSV is the source of truth.
+  // The database IDs (auto-increment) preserve the import order.
+  const displayProjects = projects;
 
   const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -55,7 +58,7 @@ export const Projects = () => {
       <div className="flex justify-between items-start">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">项目管理</h2>
-          <p className="text-gray-500 mt-1">查看待排期的项目详情及其优先级（按优先级从高到低排序）</p>
+          <p className="text-gray-500 mt-1">查看待排期的项目详情（按 CSV 导入顺序执行严格优先级排期）</p>
         </div>
         <div className="flex flex-col items-end space-y-2">
           <div className="flex items-center space-x-3">
@@ -95,8 +98,9 @@ export const Projects = () => {
           <table className="w-full text-left border-collapse min-w-[1000px]">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
+                <th className="p-4 font-semibold w-16">顺序</th>
                 <th className="p-4 font-semibold">项目名称 / Epic</th>
-                <th className="p-4 font-semibold">优先级</th>
+                <th className="p-4 font-semibold">优先级标签</th>
                 <th className="p-4 font-semibold">负责人</th>
                 <th className="p-4 font-semibold">业务方</th>
                 <th className="p-4 font-semibold">状态</th>
@@ -106,9 +110,9 @@ export const Projects = () => {
               </tr>
             </thead>
             <tbody>
-              {(!sortedProjects || sortedProjects.length === 0) ? (
+              {(!displayProjects || displayProjects.length === 0) ? (
                 <tr>
-                  <td colSpan={8} className="p-12 text-center">
+                  <td colSpan={9} className="p-12 text-center">
                     <div className="flex flex-col items-center justify-center text-gray-400 space-y-2">
                       <Info size={40} className="opacity-20" />
                       <p>暂无项目数据，请点击上方按钮导入 CSV/Excel 文件。</p>
@@ -116,8 +120,9 @@ export const Projects = () => {
                   </td>
                 </tr>
               ) : null}
-              {sortedProjects?.map((p) => (
+              {displayProjects?.map((p, index) => (
                 <tr key={p.id} className="border-b border-gray-100 hover:bg-blue-50/30 transition-colors group">
+                  <td className="p-4 text-xs font-mono text-gray-400">#{index + 1}</td>
                   <td className="p-4">
                     <div className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{p.name}</div>
                     <div className="flex items-center space-x-2 mt-1">
@@ -127,9 +132,9 @@ export const Projects = () => {
                   </td>
                   <td className="p-4">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                      getPriorityWeight(p.priority) >= 3 
+                      getPriorityWeight(p.priority) >= 4 
                         ? 'bg-red-100 text-red-700' 
-                        : getPriorityWeight(p.priority) === 2 
+                        : getPriorityWeight(p.priority) >= 2 
                         ? 'bg-yellow-100 text-yellow-700' 
                         : 'bg-green-100 text-green-700'
                     }`}>

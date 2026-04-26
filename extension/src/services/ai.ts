@@ -29,34 +29,46 @@ export const generateSchedule = async (
     throw new Error('AI API Key is not configured. Please set it in Options.');
   }
 
+  // Add an explicit priority index to ensure AI understands the order
+  const projectsWithPriority = projects.map((p, index) => ({
+    ...p,
+    priorityOrder: index + 1 // 1 is highest priority
+  }));
+
   const prompt = `
-You are an expert AI Project Resource Scheduler.
-Your task is to assign the available resources to the given projects based on priority and skills.
+You are an expert AI Project Resource Scheduler. 
+Your goal is to create a Realistic and Precise resource plan for the year ${year}.
 
-**CURRENT YEAR: ${year}**
-All scheduling must happen within the year ${year}.
+### Input Data
+1. **Available Resources**: ${JSON.stringify(resources)}
+2. **Projects to Schedule**: 
+${JSON.stringify(projectsWithPriority)}
 
-Available Resources:
-${JSON.stringify(resources, null, 2)}
+### Scheduling Rules (CRITICAL)
+1. **STRICT PRIORITY ORDER**: Projects are provided in order of priority. The "priorityOrder" field (1 = Highest) represents this. You MUST allocate resources to projects with lower "priorityOrder" first.
+2. **Role Responsibility Matrix**:
+   - **前端工程师**, **后端工程师**, **APP工程师**: Responsible for "devTotalMd".
+   - **测试工程师**: Responsible for "testTotalMd".
+   - **全栈工程师**: Can handle BOTH "devTotalMd" and "testTotalMd", but prioritize "devTotalMd" if developers are short.
+3. **Duration vs MD Constraint**: For each allocation, (Working Days between startDate/endDate) * (allocationPercentage / 100) MUST roughly equal the project's MD requirement.
+   - *Example*: 10 MD at 100% = 10 working days duration.
+4. **Resource Capacity**: A resource's total "allocationPercentage" across ALL projects at any given date range must not exceed 100%.
+5. **Dates**: All dates must be in "${year}-MM-DD" format.
+6. **No Overlapping for same task**: Do not assign multiple people to the exact same MD unless the task is large (>20 MD).
 
-Pending Projects (Sort by Priority: High > Medium > Low):
-${JSON.stringify(projects, null, 2)}
-
-Rules:
-1. Max total capacity for a resource across all projects at any time is 100%.
-2. Try to match roles/skills if applicable.
-3. **IMPORTANT**: All "startDate" and "endDate" MUST be in the format "YYYY-MM-DD" and the year MUST be ${year}.
-4. If a project has "Apr" as start month, use "${year}-04-01". If it has "Jun" as end month, use "${year}-06-30".
-5. Return ONLY a valid JSON array of objects representing the allocations. Do NOT wrap it in markdown code blocks.
-
-JSON Schema per allocation object:
-{
-  "resourceId": number,
-  "projectId": number,
-  "allocationPercentage": number,
-  "startDate": "YYYY-MM-DD",
-  "endDate": "YYYY-MM-DD"
-}
+### Output Format
+Return ONLY a valid JSON array of objects. No markdown, no conversational text.
+JSON Schema:
+[
+  {
+    "resourceId": number,
+    "projectId": number,
+    "allocationPercentage": number,
+    "startDate": "YYYY-MM-DD",
+    "endDate": "YYYY-MM-DD",
+    "reason": "Explain why this duration was chosen based on the specific role (Dev or Test) and the priorityOrder"
+  }
+]
 `;
 
   const url = `${settings.baseUrl.replace(/\/$/, '')}/chat/completions`;
@@ -68,8 +80,11 @@ JSON Schema per allocation object:
     },
     body: JSON.stringify({
       model: settings.model,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.2,
+      messages: [
+        { role: 'system', content: "You are a precise resource planning assistant. Strict adherence to the provided priorityOrder and accurate mapping of roles (前端/后端/APP/全栈/测试) to MD types (devTotalMd/testTotalMd) are your top priorities." }, 
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.1,
     })
   });
 
@@ -82,7 +97,6 @@ JSON Schema per allocation object:
   const rawContent = data.choices[0].message.content.trim();
   
   try {
-    // Attempt to parse. Might need cleanup if LLM still adds markdown despite instructions.
     const cleanContent = rawContent.replace(/^```json/, '').replace(/```$/, '').trim();
     const allocations = JSON.parse(cleanContent) as Partial<Allocation>[];
     return allocations;
