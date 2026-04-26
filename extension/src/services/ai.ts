@@ -29,35 +29,33 @@ export const generateSchedule = async (
     throw new Error('AI API Key is not configured. Please set it in Options.');
   }
 
-  // Add an explicit priority index to ensure AI understands the order
   const projectsWithPriority = projects.map((p, index) => ({
     ...p,
-    priorityOrder: index + 1 // 1 is highest priority
+    priorityOrder: index + 1
   }));
 
   const prompt = `
 You are an expert AI Project Resource Scheduler. 
-Your goal is to create a Realistic and Precise resource plan for the year ${year}.
+Goal: Precise resource plan for ${year} with INTEGER Man-Days.
 
 ### Input Data
 1. **Available Resources**: ${JSON.stringify(resources)}
-2. **Projects to Schedule**: 
-${JSON.stringify(projectsWithPriority)}
+2. **Projects to Schedule**: ${JSON.stringify(projectsWithPriority)}
 
 ### Scheduling Rules (CRITICAL)
-1. **STRICT PRIORITY ORDER**: Projects are provided in order of priority. The "priorityOrder" field (1 = Highest) represents this. You MUST allocate resources to projects with lower "priorityOrder" first.
-2. **Role Responsibility Matrix**:
-   - **前端工程师**, **后端工程师**, **APP工程师**: Responsible for "devTotalMd".
-   - **测试工程师**: Responsible for "testTotalMd".
-   - **全栈工程师**: Can handle BOTH "devTotalMd" and "testTotalMd", but prioritize "devTotalMd" if developers are short.
-3. **Duration vs MD Constraint**: For each allocation, (Working Days between startDate/endDate) * (allocationPercentage / 100) MUST roughly equal the project's MD requirement.
+1. **STRICT PRIORITY ORDER**: Follow priorityOrder (1=Highest).
+2. **INTEGER MAN-DAYS ONLY**: The result of (Working Days * allocationPercentage / 100) MUST be an INTEGER. No decimals like 0.5 or 1.2.
    - *Example*: 10 MD at 100% = 10 working days duration.
-4. **Resource Capacity**: A resource's total "allocationPercentage" across ALL projects at any given date range must not exceed 100%.
-5. **Dates**: All dates must be in "${year}-MM-DD" format.
-6. **No Overlapping for same task**: Do not assign multiple people to the exact same MD unless the task is large (>20 MD).
+3. **Role Mapping**:
+   - **前端工程师**, **后端工程师**, **APP工程师**: Use "devTotalMd".
+   - **测试工程师**: Use "testTotalMd".
+   - **全栈工程师**: Flexible.
+4. **Duration vs MD Constraint**: Duration * Percentage / 100 MUST exactly match the project's MD requirement.
+5. **Resource Capacity**: Max 100% per resource at any date.
+6. **Dates**: "${year}-MM-DD" format.
 
 ### Output Format
-Return ONLY a valid JSON array of objects. No markdown, no conversational text.
+Return ONLY a valid JSON array of objects.
 JSON Schema:
 [
   {
@@ -66,7 +64,7 @@ JSON Schema:
     "allocationPercentage": number,
     "startDate": "YYYY-MM-DD",
     "endDate": "YYYY-MM-DD",
-    "reason": "Explain why this duration was chosen based on the specific role (Dev or Test) and the priorityOrder"
+    "reason": "Explain how this duration results in an INTEGER Man-Day value"
   }
 ]
 `;
@@ -81,7 +79,7 @@ JSON Schema:
     body: JSON.stringify({
       model: settings.model,
       messages: [
-        { role: 'system', content: "You are a precise resource planning assistant. Strict adherence to the provided priorityOrder and accurate mapping of roles (前端/后端/APP/全栈/测试) to MD types (devTotalMd/testTotalMd) are your top priorities." }, 
+        { role: 'system', content: "You are a precise resource planning assistant. All Man-Day calculations MUST result in integers (1, 2, 3...). No decimals allowed." }, 
         { role: 'user', content: prompt }
       ],
       temperature: 0.1,

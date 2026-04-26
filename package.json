@@ -1,0 +1,10 @@
+{
+  "name": "irp-root",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix extension",
+    "build": "npm run build --prefix extension",
+    "zip": "npm run zip --prefix extension",
+    "publish": "npm run publish --prefix extension"
+  }
+}

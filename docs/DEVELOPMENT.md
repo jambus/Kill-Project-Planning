@@ -69,7 +69,45 @@
 *   `docs/intelligent-resource-planner.md`: 完整的 PRD、系统架构图及详细设计规范。
 *   `docs/TASKS.md`: 项目路线图及当前任务状态。
 
-## 5. 技术栈速览 (Tech Stack Overview)
+## 6. 发布与密钥说明 (Publishing & Key)
+
+为了保持插件 ID 的一致性，项目在 `manifest.json` 中配置了固定的 `key`。
+*   **Web Store 公钥**：已配置，确保插件 ID 为固定值，便于在生产环境和开发环境之间无缝切换并保留本地存储数据。
+
+## 7. 自动化发布指南 (Automated Publishing)
+
+项目支持通过 CLI 一键发布到 Chrome Web Store。
+
+### 7.1 配置凭证 (Credentials)
+
+在发布前，您需要从 [Google Cloud Console](https://console.cloud.google.com/) 获取以下环境变量：
+
+1.  `EXTENSION_ID`: 插件在 Web Store 的 ID。
+2.  `CLIENT_ID`: Google OAuth2 Client ID。
+3.  `CLIENT_SECRET`: Google OAuth2 Client Secret。
+4.  `REFRESH_TOKEN`: 通过 OAuth2 流程获取的刷新令牌。
+
+### 7.2 执行发布
+
+在 `extension` 目录下运行：
+```bash
+# 首先设置环境变量 (建议在 .env 或本地 shell 中配置)
+export EXTENSION_ID=your_extension_id
+export CLIENT_ID=your_client_id
+export CLIENT_SECRET=your_client_secret
+export REFRESH_TOKEN=your_refresh_token
+
+# 执行一键构建、打包并上传
+npm run publish
+```
+
+该脚本会自动完成：
+1.  生产环境编译 (`npm run build`)。
+2.  生成 ZIP 压缩包 (`npm run zip`)。
+3.  上传产物到 Chrome Web Store 后台。
+
+---
+
 
 *   **框架**: React 19 + TypeScript + Vite 4
 *   **插件构建**: `@crxjs/vite-plugin` (Manifest V3)
