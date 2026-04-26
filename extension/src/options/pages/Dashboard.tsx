@@ -41,11 +41,9 @@ export const Dashboard = () => {
       return { readyProjects: [], pendingProjects: [], projectGaps: [], resourceIdle: [] };
     }
 
-    // 1. Split projects by assessment status
     const ready = projects.filter(p => p.devTotalMd > 0 || p.testTotalMd > 0);
     const pending = projects.filter(p => p.devTotalMd === 0 && p.testTotalMd === 0);
 
-    // 2. Project Gaps (only for ready projects)
     const gaps = ready.map(p => {
       const pAllocations = allocations.filter(a => a.projectId === p.id);
       let allocatedDevMd = 0;
@@ -69,7 +67,6 @@ export const Dashboard = () => {
       };
     }).filter(p => p.devGap >= 1 || p.testGap >= 1);
 
-    // 3. Resource Idle
     const rangeStart = new Date(selectedYear, startMonth - 1, 1);
     const rangeEnd = new Date(selectedYear, endMonth, 0);
     const totalWorkingDaysInRange = getWorkingDays(rangeStart, rangeEnd);
@@ -97,12 +94,23 @@ export const Dashboard = () => {
 
   const handleGenerateSchedule = async () => {
     if (!resources || !readyProjects.length) return;
+    
+    console.group('🚀 AI 智能排期流程启动');
+    console.log('[Dashboard] Target Year:', selectedYear);
+    console.log('[Dashboard] Selected Range:', `${startMonth}月 - ${endMonth}月`);
+    console.log('[Dashboard] Resources being sent:', resources);
+    console.log('[Dashboard] Projects being sent:', readyProjects);
+
     setIsScheduling(true);
     setError(null);
     try {
+      console.log('[Dashboard] 🧹 Cleaning up existing allocations...');
       await db.allocations.clear();
-      // ONLY send readyProjects to AI
+      
       const newAllocations = await generateSchedule(resources, readyProjects, selectedYear);
+      
+      console.log('[Dashboard] 💾 Saving new allocations to DB:', newAllocations.length, 'records');
+      
       for (const alloc of newAllocations) {
         if (alloc.resourceId && alloc.projectId) {
           await db.allocations.add({
@@ -114,10 +122,13 @@ export const Dashboard = () => {
           });
         }
       }
+      console.log('[Dashboard] ✨ AI Scheduling Completed Successfully!');
     } catch (err: any) {
+      console.error('[Dashboard] ❌ Scheduling Failed:', err);
       setError(err.message);
     } finally {
       setIsScheduling(false);
+      console.groupEnd();
     }
   };
 
