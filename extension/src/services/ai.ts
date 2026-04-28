@@ -1,5 +1,4 @@
 import { getStorageItem } from '../utils/storage';
-import type { Resource, Project, Allocation } from '../db';
 
 export interface AISettings {
   apiKey: string;
@@ -37,7 +36,7 @@ const callAI = async (systemMsg: string, prompt: string, settings: AISettings) =
     body: JSON.stringify({
       model: settings.model,
       messages: [{ role: 'system', content: systemMsg }, { role: 'user', content: prompt }],
-      temperature: 0.05, // Accuracy is key
+      temperature: 0.1, // Keep it low for math/logic
     })
   });
   if (!response.ok) throw new Error(`AI API Error: ${response.status}`);
@@ -45,53 +44,50 @@ const callAI = async (systemMsg: string, prompt: string, settings: AISettings) =
   return extractJsonArray(data.choices[0].message.content.trim());
 };
 
-/**
- * Phase 1: Draft global schedule
- */
-export const draftInitialSchedule = async (resources: Resource[], projects: Project[], year: number): Promise<Partial<Allocation>[]> => {
-  const settings = await getAISettings();
-  if (!settings) throw new Error('AI API Key is not configured.');
-  
-  const prompt = `
-Generate a BASE resource plan for ${year}. 
-- Priority: TOP items first.
-- Strict Match: Dev roles to devTotalMd, Test roles to testTotalMd.
-- Capacity: Max 100% per person.
-- Format: JSON Array.
-Resources: ${JSON.stringify(resources)}
-Projects: ${JSON.stringify(projects.map((p, i) => ({ ...p, priorityOrder: i + 1 })))}
-
-Output ONLY a JSON array with these exact keys:
-[{"resourceId": 1, "projectId": 1, "allocationPercentage": 100, "startDate": "YYYY-MM-DD", "endDate": "YYYY-MM-DD", "reason": "..."}]
-`;
-
-  return await callAI("You are a resource planning expert. Create a full initial plan.", prompt, settings);
-};
+export interface AIMicroAllocation {
+  resourceId: number;
+  targetGap: 'dev' | 'test';
+  allocatedMd: number;
+  allocationPercentage: number;
+  reason: string;
+}
 
 /**
- * Phase 2: Targeted Refinement (The "Closer")
+ * Step-by-Step Micro Scheduling: Suggest allocations for a SINGLE project.
  */
-export const refineGaps = async (gaps: any[], idleResources: any[]): Promise<Partial<Allocation>[]> => {
+export const suggestAllocationForProject = async (
+  project: { id: number; name: string; devGap: number; testGap: number },
+  idleResources: { id: number; name: string; role: string; idleMd: number; skills: string[] }[]
+): Promise<AIMicroAllocation[]> => {
   const settings = await getAISettings();
   if (!settings) throw new Error('AI API Key is not configured.');
 
   const prompt = `
-CRITICAL: ELIMINATE REMAINING GAPS. 
-There are leftover MD requirements. You MUST use idle staff to fill them. 
-Zero tolerance for idle time if gaps exist.
+We are scheduling ONE project. 
+Project Name: ${project.name}
+Needs: ${project.devGap} Dev MDs (devGap), ${project.testGap} Test MDs (testGap).
 
-Remaining Gaps: ${JSON.stringify(gaps.map(g => ({ id: g.id, name: g.name, devGap: g.devGap, testGap: g.testGap })))}
-Idle Staff: ${JSON.stringify(idleResources.map(r => ({ id: r.id, name: r.name, role: r.role, idleMd: r.idleMd })))}
+Candidate Resources (with remaining idle capacity):
+${JSON.stringify(idleResources)}
 
-Instruction:
-1. For every devGap > 0, assign a Dev/Fullstack from Idle Staff.
-2. For every testGap > 0, assign a Test/Fullstack from Idle Staff.
-3. Every NEW allocation MUST be at least 1 MD.
-4. If a dev needs 1 day and Resource A is free, YOU MUST ASSIGN IT.
+YOUR TASK:
+Match the best resources to fulfill the project's devGap and testGap.
+Rules:
+1. DO NOT assign more MDs than the project needs.
+2. DO NOT assign more MDs than a resource's "idleMd".
+3. Role matching:
+   - 前端/后端/APP -> devGap
+   - 测试工程师 -> testGap
+   - 全栈工程师 -> can do either, but prioritize devGap unless testGap is urgent and no testers are available.
+4. Provide the "allocatedMd" (must be an integer >= 1) and "allocationPercentage" (usually 100, but can be 50 if they are multitasking).
 
-Output ONLY a JSON array with these exact keys:
-[{"resourceId": 1, "projectId": 1, "allocationPercentage": 100, "startDate": "YYYY-MM-DD", "endDate": "YYYY-MM-DD", "reason": "..."}]
+Return ONLY a JSON Array with this exact format:
+[{"resourceId": 1, "targetGap": "dev", "allocatedMd": 5, "allocationPercentage": 100, "reason": "Best fit for dev task"}]
 `;
 
-  return await callAI("You are a gap-filling specialist. Your only mission is to reduce project gaps to ZERO. Be aggressive and use all idle time.", prompt, settings);
+  return await callAI(
+    "You are a strict resource allocation algorithm. You only output valid JSON arrays. You never over-allocate.", 
+    prompt, 
+    settings
+  );
 };

@@ -42,3 +42,16 @@
 - [x] **DONE** 5.1 整体流程联调与测试（Jira 同步 -> 人员管理 -> AI 排期 -> 页面注入）。
 - [x] **DONE** 5.2 性能优化（针对大量 Issue 数据的 IndexedDB 查询优化）。
 - [x] **DONE** 5.3 准备 Chrome Web Store 上架素材并打包扩展程序。
+
+## 阶段六：架构重构 - 步进式扣减排期法 (Phase 6: Step-by-Step Deduction Scheduling)
+- [x] **DONE** 6.1 **核心逻辑状态管理 (State Management)**
+    - [x] 6.1.1 建立本地「资源池 (Resource Bank)」模型，精确跟踪每个人员的可用工时。
+    - [x] 6.1.2 建立本地「需求池 (Project Queue)」模型，跟踪每个项目的剩余开发/测试缺口。
+- [x] **DONE** 6.2 **AI 调度引擎重构 (AI Engine Refactoring)**
+    - [x] 6.2.1 废弃全局盲排 Prompt，改为**逐项目 (Per-Project)** 候选人匹配的微调用模式。
+- [x] **DONE** 6.3 **硬扣减执行器 (Hard Deduction Executor)**
+    - [x] 6.3.1 JS 代码拦截 AI 建议，执行强制截断：`Math.min(AI建议人天, 项目缺口, 资源余量)`。
+    - [x] 6.3.2 动态计算精确的起止日期，落库并扣减池子余额。
+- [x] **DONE** 6.4 **交互与文档同步 (UI & Docs)**
+    - [x] 6.4.1 更新大盘排期按钮的 Loading 状态，展示「正在处理项目 X...」的进度流。
+    - [x] 6.4.2 更新 `docs/intelligent-resource-planner.md` 的架构设计图与逻辑说明。

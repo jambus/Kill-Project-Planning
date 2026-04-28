@@ -19,9 +19,19 @@ const SPECIAL_WORKDAYS_2026 = [
 ];
 
 /**
+ * Check if a string is a valid date
+ */
+export const isValidDateStr = (dateStr: string | undefined | null): boolean => {
+  if (!dateStr || typeof dateStr !== 'string' || dateStr.trim() === '') return false;
+  const d = new Date(dateStr);
+  return !isNaN(d.getTime());
+};
+
+/**
  * Check if a date is a working day
  */
 export const isWorkingDay = (date: Date): boolean => {
+  if (isNaN(date.getTime())) return false;
   const dateStr = date.toISOString().split('T')[0];
   const day = date.getDay(); // 0 is Sunday, 6 is Saturday
 
@@ -82,3 +92,26 @@ export const calculateMonthlyMD = (
 export const getMonthLabel = (year: number, month: number): string => {
   return `${year}-${month.toString().padStart(2, '0')}`;
 };
+
+/**
+ * Calculate the end date given a start date, required MDs, and allocation percentage.
+ */
+export const calculateEndDate = (startDateStr: string, mdNeeded: number, percentage: number): string => {
+  if (mdNeeded <= 0) return startDateStr;
+  const workingDaysNeeded = Math.ceil((mdNeeded * 100) / percentage);
+  
+  const current = new Date(startDateStr);
+  let daysAdded = 0;
+  
+  // Find valid working days
+  while (true) {
+    if (isWorkingDay(current)) {
+      daysAdded++;
+      if (daysAdded >= workingDaysNeeded) break;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  
+  return current.toISOString().split('T')[0];
+};
+

@@ -102,31 +102,35 @@ graph TD
 *   **优先级逻辑**：系统严格遵循「从上到下」的物理顺序规则。文件导入时，排在顶部的项目具有最高优先级。
 *   **展示与排期一致性**：无论是「项目管理」页面的列表展示，还是「全局排期大盘」的 AI 自动排期，都统一使用数据库自增 ID 作为顺序基准，确保 UI 显示顺序、业务优先级顺序与 AI 逻辑完全对齐。
 
-#### 3.3.2 多阶段迭代排期架构 (Iterative AI Scheduling)
-为了解决单次调用 AI 容易产生的漏排、少排问题，系统采用「初稿 -> 审计 -> 补排」的迭代架构：
+#### 3.3.2 步进式扣减排期架构 (Step-by-Step Deduction Scheduling)
+为了解决 AI “盲排” 容易产生的漏排、超排和算术幻觉问题，系统采用「代码主导状态，AI 辅助决策 (Code-Driven Orchestration)」的新一代迭代架构：
 
 ```mermaid
 graph TD
-    Start([点击一键排期]) --> Prep[准备待排项目 & 人员数据]
-    Prep --> Phase1["<b>Phase 1: 全局初稿</b><br/>AI 生成基础分配方案"]
-    Phase1 --> Save1[解析并初步保存至 IndexedDB]
+    Start([点击一键排期]) --> Init[重置 Allocations 表<br/>建立资源池与需求池]
+    Init --> LoopStart{需求池是否为空<br/>或资源耗尽?}
     
-    Save1 --> Audit["<b>Local Audit: 自动化审计</b><br/>本地逻辑计算 MD 缺口与人员碎片时间"]
+    LoopStart -- 是 --> End([完成排期])
     
-    Audit --> Check{是否存在残余缺口<br/>且人员有余力?}
+    LoopStart -- 否 --> PopProject[出列: 获取优先级最高的项目 A]
+    PopProject --> Audit[<b>自动化硬审计</b><br/>精确计算 A 剩余的 Dev/Test 缺口<br/>精确计算各人员剩余闲置人天]
     
-    Check -- 是 --> Phase2["<b>Phase 2: 精准补排</b><br/>针对性发送缺口数据给 AI 填空"]
-    Phase2 --> Save2[追加保存补排分配项]
+    Audit --> CheckGap{项目 A 是否仍有缺口?}
+    CheckGap -- 否 --> LoopStart
     
-    Check -- 否 --> End([完成排期])
-    Save2 --> End
+    CheckGap -- 是 --> AIMatch[<b>AI 微调度</b><br/>仅将 A 的缺口与闲置人员发给 AI<br/>AI 返回分配建议 (人天与比例)]
     
+    AIMatch --> HardDeduction[<b>JS 强制截断与扣减</b><br/>实际分配人天 = Math.min(AI建议, 项目缺口, 人员余量)]
+    HardDeduction --> CalculateDates[基于项目与人员情况计算真实起止日期]
+    CalculateDates --> Save[持久化至 IndexedDB 并触发 UI 更新]
+    
+    Save --> LoopStart
     End --> Refresh[更新仪表盘大盘展示]
 ```
 
-1.  **Drafting Phase (初稿)**：AI 根据全局数据生成第一版分配方案，优先满足高优先级项目的核心工时。
-2.  **Hard-coded Audit (硬审计)**：系统利用本地代码逻辑，精确计算各项目的剩余 MD 缺口及各资源的碎片化空闲时间。
-3.  **Refinement Phase (补排)**：将审计出的「残余缺口」与「闲置资源」再次发送给 AI，执行专项补排指令，消除分配盲区。
+1.  **资源池与需求池 (State Management)**：在前端实时维护各资源的空闲时间（Idle MD）和各项目的剩余缺口（Gaps）。
+2.  **AI 微调度 (Micro-Matching)**：废弃一次性大 Prompt，改为按项目逐个调用 AI。AI 仅针对当前单个项目的缺口和当前的闲置名单推荐最佳人选。
+3.  **强制截断执行器 (Hard Deduction)**：JS 代码在接收 AI 建议后绝不盲目信任，强制执行 `Math.min(建议人天, 项目缺口, 资源余量)`，从而 **100% 杜绝超排**，并将排期过程的透明度发挥到极致。
 
 #### 3.3.3 月度资源投入计算 (Monthly Allocated MD Calculation)
 *   **基准年份**：系统当前以 **2026 年** 为基准年份进行所有排期和计算。
