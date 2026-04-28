@@ -209,7 +209,7 @@ export const Resources = () => {
                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">可用负荷: {formData.capacity}%</label>
                 <input 
                   type="range" 
-                  min="1" 
+                  min="0" 
                   max="100" 
                   step="5"
                   value={formData.capacity} 

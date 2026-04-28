@@ -76,9 +76,8 @@ Rules:
 1. DO NOT assign more MDs than the project needs.
 2. DO NOT assign more MDs than a resource's "idleMd".
 3. Role matching:
-   - 前端/后端/APP -> devGap
-   - 测试工程师 -> testGap
-   - 全栈工程师 -> can do either, but prioritize devGap unless testGap is urgent and no testers are available.
+   - 前端/后端/APP/全栈工程师 -> devGap ONLY (they NEVER do testing).
+   - 测试工程师 -> testGap ONLY.
 4. Provide the "allocatedMd" (must be an integer >= 1) and "allocationPercentage" (usually 100, but can be 50 if they are multitasking).
 
 Return ONLY a JSON Array with this exact format:

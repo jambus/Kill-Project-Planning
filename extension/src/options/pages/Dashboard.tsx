@@ -48,19 +48,7 @@ export const Dashboard = () => {
         const workingDays = getWorkingDays(new Date(a.startDate), new Date(a.endDate));
         const totalMd = Math.round((workingDays * (a.allocationPercentage || 0)) / 100);
         
-        // Match logic: test engineer does test, others do dev. 
-        // Fullstack could do both, but for auditing, we need to know what they did.
-        // We look at the actual gaps. Let's simplify: look at the targetGap if we stored it, 
-        // or infer from role.
         if (res?.role === '测试工程师') allocatedTestMd += totalMd; 
-        else if (res?.role === '全栈工程师') {
-            // Fullstack: assume they fill dev first, then test.
-            // For a simpler audit, let's just add to dev for now unless it was explicitly tagged.
-            // We can infer by checking if it was a test allocation if we had a flag.
-            // Without a flag, we rely on the strict rule: test engineer -> test, others -> dev.
-            // Actually, we'll introduce an explicit check or just rely on the existing logic for the demo.
-            allocatedDevMd += totalMd; 
-        }
         else allocatedDevMd += totalMd;
       });
       return { 
