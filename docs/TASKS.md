@@ -55,3 +55,45 @@
 - [x] **DONE** 6.4 **交互与文档同步 (UI & Docs)**
     - [x] 6.4.1 更新大盘排期按钮的 Loading 状态，展示「正在处理项目 X...」的进度流。
     - [x] 6.4.2 更新 `docs/intelligent-resource-planner.md` 的架构设计图与逻辑说明。
+
+## 阶段七：AI 排期精准度与资源利用率优化 (Phase 7: AI Scheduling Precision & Resource Optimization)
+
+### P0 - 关键优化
+
+- [ ] 7.1 **AI Prompt 策略增强 (Prompt Engineering)**
+    - [ ] 7.1.1 在 Prompt 中注入技能匹配权重：将项目所属产品域/技术栈与人员 `skills[]` 进行交叉标注，让 AI 优先匹配「专业对口」的候选人，而非随机选择空闲人员。
+    - [ ] 7.1.2 在 Prompt 中传递项目时间窗口约束（`startDate` / `endDate`），让 AI 优先选择在项目周期内空闲的人员。
+    - [ ] 7.1.3 引入「测试前置依赖」约束：在 Prompt 中加入规则，测试工程师的 `startDate` 应晚于对应项目开发排期的中点，避免测试资源过早锁定、空等开发交付。
+
+- [ ] 7.2 **Dev-first / Test-second 两阶段排期 (Two-Phase Scheduling)**
+    - [ ] 7.2.1 将排期循环拆分为两阶段：第一轮只排 `devGap`，第二轮基于开发结束时间动态计算测试最早可开始时间后再排 `testGap`。
+    - [ ] 7.2.2 在第二轮测试排期中，确保全栈工程师严格归属开发力量、仅分配 `devGap`，测试资源池仅包含测试工程师。
+
+### P1 - 重要改进
+
+- [ ] 7.3 **数据模型增强 (Data Model Enhancement)**
+    - [ ] 7.3.1 `Allocation` 表增加 `allocationType: 'dev' | 'test'` 字段，从 AI 返回的 `targetGap` 直接写入，使审计逻辑不再依赖角色推断分配类型。
+    - [ ] 7.3.2 `Project` 表增加 `techStack` / `domain` 字段，CSV 导入时支持读取"技术栈/产品域"列，用于 AI 精准匹配。
+    - [ ] 7.3.3 增加 `ResourceCalendar` 表或在 `Resource` 上增加 `unavailableDates: string[]`，支持录入请假/不可用日期，让排期贴近现实。
+
+- [ ] 7.4 **排期算法优化 - 防止贪心独占 (Anti-Greedy Scheduling)**
+    - [ ] 7.4.1 引入「时间切片」概念：在 AI Prompt 中增加分时策略指引，当资源 `idleMd` 远超单项目需求时，建议 `allocationPercentage = 50%` 同时服务多个项目。
+    - [ ] 7.4.2 支持用户选择排期策略模板：均衡模式（每人并行 2-3 项目，50%）、专注模式（每人同时 1 项目，100%）、紧急模式（高优项目可获得加班系数）。
+
+### P2 - 体验与可持续性
+
+- [ ] 7.5 **节假日与日历可配置 (Configurable Holiday Calendar)**
+    - [ ] 7.5.1 将 `dateUtils.ts` 中硬编码的 2026 年节假日改为可配置数据（存储在 IndexedDB 或 Settings），支持多年份切换，避免跨年失效。
+
+- [ ] 7.6 **Content Script 预警精准度提升 (Alert Accuracy)**
+    - [ ] 7.6.1 Jira 页面预警从简单累加 `allocationPercentage` 改为按当前时间范围计算，排除已结束的历史分配，只统计进行中和未来的负荷。
+
+- [ ] 7.7 **排期快照与方案对比 (Schedule Snapshots)**
+    - [ ] 7.7.1 排期时不再 `allocations.clear()` 全量清除，改为引入 `batchId` / `createdAt` 标记，保留历史排期快照，支持不同方案的对比与回滚。
+
+- [ ] 7.8 **导入与调用优化 (Import & API Optimization)**
+    - [ ] 7.8.1 CSV 导入改为按表头名称匹配列位置（替代当前硬编码列序号），增强文件格式兼容性。
+    - [ ] 7.8.2 AI API 调用从逐项目单次调用改为小批量分组调用（3-5 个项目一组），降低 20+ 项目场景下的延迟和 Token 成本。
+
+- [ ] 7.9 **全局补排轮次 (Global Refinement Round)**
+    - [ ] 7.9.1 在所有项目逐项扣减完成后，对仍有缺口的项目执行一轮全局补排，将碎片化闲置资源"拼接"分配，消除分配盲区。

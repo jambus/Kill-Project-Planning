@@ -81,3 +81,29 @@ Interaction Summary                                                             
 │  gemini-3.1-pro-preview            15     2,439,661     1,973,515         2,720                                                                                                                          │
 │    ↳ main                          15     2,439,661     1,973,515         2,720                                                                                                                          │
 │  To resume this session: gemini --resume 5dd76895-824d-4a92-9748-90a4bbd02878    
+
+
+Agent powering down. Goodbye!                                                                                                                                                                           │
+│                                                                                                                                                                                                          │
+│  Interaction Summary                                                                                                                                                                                     │
+│  Session ID:                 5dd76895-824d-4a92-9748-90a4bbd02878                                                                                                                                        │
+│  Tool Calls:                 31 ( ✓ 31 x 0 )                                                                                                                                                             │
+│  Success Rate:               100.0%                                                                                                                                                                      │
+│  User Agreement:             100.0% (31 reviewed)                                                                                                                                                        │
+│  Code Changes:               +256 -149                                                                                                                                                                   │
+│                                                                                                                                                                                                          │
+│  Performance                                                                                                                                                                                             │
+│  Wall Time:                  23h 34m 45s                                                                                                                                                                 │
+│  Agent Active:               26m 6s                                                                                                                                                                      │
+│    » API Time:               20m 26s (78.3%)                                                                                                                                                             │
+│    » Tool Time:              5m 40s (21.7%)                                                                                                                                                              │
+│                                                                                                                                                                                                          │
+│                                                                                                                                                                                                          │
+│  Model Usage                                                                                                                                                                                             │
+│  Use /model to view model quota information                                                                                                                                                              │
+│                                                                                                                                                                                                          │
+│  Model                           Reqs  Input Tokens   Cache Reads Output Tokens                                                                                                                          │
+│  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  │
+│  gemini-3.1-pro-preview            77    10,245,284     9,463,835        17,521                                                                                                                          │
+│    ↳ main                          77    10,245,284     9,463,835        17,521                                                                                                                          │
+│  To resume this session: gemini --resume 5dd76895-824d-4a92-9748-90a4bbd02878   
