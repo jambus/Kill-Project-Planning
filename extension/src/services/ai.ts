@@ -52,40 +52,57 @@ export interface AIMicroAllocation {
   reason: string;
 }
 
+export type SchedulingStrategy = 'balanced' | 'focused' | 'urgent';
+
 /**
- * Step-by-Step Micro Scheduling: Suggest allocations for a SINGLE project.
+ * Step-by-Step Micro Scheduling: Suggest allocations for a SINGLE project and specific phase.
  */
 export const suggestAllocationForProject = async (
-  project: { id: number; name: string; devGap: number; testGap: number },
-  idleResources: { id: number; name: string; role: string; idleMd: number; skills: string[] }[]
+  project: { id: number; name: string; gap: number; techStack?: string; domain?: string; startDate?: string; endDate?: string },
+  idleResources: { id: number; name: string; role: string; idleMd: number; skills: string[] }[],
+  phase: 'dev' | 'test',
+  strategy: SchedulingStrategy = 'focused'
 ): Promise<AIMicroAllocation[]> => {
   const settings = await getAISettings();
   if (!settings) throw new Error('AI API Key is not configured.');
 
-  const prompt = `
-We are scheduling ONE project. 
-Project Name: ${project.name}
-Needs: ${project.devGap} Dev MDs (devGap), ${project.testGap} Test MDs (testGap).
+  let strategyInstruction = '';
+  if (strategy === 'balanced') {
+    strategyInstruction = 'BALANCED STRATEGY: Prefer assigning resources at 50% allocationPercentage so they can multitask on 2 projects concurrently, unless the gap is very small.';
+  } else if (strategy === 'urgent') {
+    strategyInstruction = 'URGENT STRATEGY: Assign resources at 100% or even 120% (if your logic allows over-allocation for overtime) to finish as fast as possible.';
+  } else {
+    strategyInstruction = 'FOCUSED STRATEGY: Prefer assigning resources at 100% allocationPercentage to finish one project before starting another.';
+  }
 
-Candidate Resources (with remaining idle capacity):
+  const prompt = `
+We are scheduling ONE project for the ${phase.toUpperCase()} phase. 
+Project Name: ${project.name}
+Needs: ${project.gap} MDs for ${phase}.
+Context: ${project.techStack ? 'Tech Stack: ' + project.techStack : ''} ${project.domain ? 'Domain: ' + project.domain : ''}
+Time Window: ${project.startDate || 'N/A'} to ${project.endDate || 'N/A'}
+
+Candidate Resources (with remaining idle capacity & skills):
 ${JSON.stringify(idleResources)}
 
 YOUR TASK:
-Match the best resources to fulfill the project's devGap and testGap.
+Match the best resources to fulfill the project's ${phase} gap.
 Rules:
 1. DO NOT assign more MDs than the project needs.
 2. DO NOT assign more MDs than a resource's "idleMd".
-3. Role matching:
-   - 前端/后端/APP/全栈工程师 -> devGap ONLY (they NEVER do testing).
-   - 测试工程师 -> testGap ONLY.
-4. Provide the "allocatedMd" (must be an integer >= 1) and "allocationPercentage" (usually 100, but can be 50 if they are multitasking).
+3. Skill Matching: Prioritize resources whose "skills" match the project's Tech Stack or Domain.
+4. Phase rules:
+   - If phase is 'dev', only assign Developers (前端/后端/APP/全栈).
+   - If phase is 'test', only assign Testers (测试工程师).
+5. Provide the "allocatedMd" (must be an integer >= 1) and "allocationPercentage".
+6. ${strategyInstruction}
 
 Return ONLY a JSON Array with this exact format:
-[{"resourceId": 1, "targetGap": "dev", "allocatedMd": 5, "allocationPercentage": 100, "reason": "Best fit for dev task"}]
+[{"resourceId": 1, "targetGap": "${phase}", "allocatedMd": 5, "allocationPercentage": 100, "reason": "Skill match explanation..."}]
 `;
 
   return await callAI(
-    "You are a strict resource allocation algorithm. You only output valid JSON arrays. You never over-allocate.", 
+    "You are a strict resource allocation algorithm. You prioritize skill matching. You only output valid JSON arrays. You never over-allocate.", 
     prompt, 
     settings
   );

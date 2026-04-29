@@ -6,6 +6,7 @@ export interface Resource {
   role: string; // e.g., "Frontend", "Backend", "Test"
   capacity: number; // e.g., 100 (for 100%)
   skills: string[]; // JSON array of skill tags
+  unavailableDates?: string[]; // Array of ISO dates when resource is on leave
 }
 
 export interface Project {
@@ -22,6 +23,8 @@ export interface Project {
   jiraEpicKey: string; // Jira Epic Key
   devTotalMd: number; // Dev Total MD (开发评估总天数)
   testTotalMd: number; // Test Total MD (测试评估总天数)
+  techStack?: string; // Technical Stack required
+  domain?: string; // Product Domain
 }
 
 export interface Allocation {
@@ -31,6 +34,7 @@ export interface Allocation {
   startDate: string; // ISO date
   endDate: string; // ISO date
   allocationPercentage: number; // e.g., 50 for 50% time
+  allocationType?: 'dev' | 'test'; // Whether this allocation is for dev gap or test gap
 }
 
 export interface JiraWorklog {
@@ -69,6 +73,10 @@ export class PlannerDatabase extends Dexie {
     }).upgrade(tx => {
       // Clear old jira projects since schema fundamentally changed
       return tx.table('projects').clear();
+    });
+
+    this.version(3).stores({
+      allocations: '++id, resourceId, projectId, startDate, endDate, allocationType'
     });
   }
 }

@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import { suggestAllocationForProject, type AIMicroAllocation } from '../../services/ai';
-import { Play, Users, ChevronDown, ArrowRight, ClipboardList, AlertTriangle, FileWarning, Search, TriangleAlert, User, Briefcase, RefreshCcw, CheckCircle2 } from 'lucide-react';
+import { suggestAllocationForProject, type AIMicroAllocation, type SchedulingStrategy } from '../../services/ai';
+import { Play, Users, ChevronDown, ArrowRight, ClipboardList, AlertTriangle, FileWarning, Search, TriangleAlert, User, Briefcase, RefreshCcw, CheckCircle2, Settings2 } from 'lucide-react';
 import { calculateMonthlyMD, getWorkingDays, calculateEndDate, isWorkingDay, isValidDateStr } from '../../utils/dateUtils';
 
 export const Dashboard = () => {
@@ -16,6 +16,7 @@ export const Dashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [groupMode, setGroupMode] = useState<'resource' | 'project'>('resource');
+  const [strategy, setStrategy] = useState<SchedulingStrategy>('focused');
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -108,6 +109,34 @@ export const Dashboard = () => {
     return nextDay.toISOString().split('T')[0];
   };
 
+  // Helper to calculate the midpoint of dev phase for testing
+  const calculateTestStartDate = (projectId: number, currentAllocations: any[], defaultStartDate: string) => {
+    const projAllocs = currentAllocations.filter(a => Number(a.projectId) === Number(projectId));
+    if (projAllocs.length === 0) return defaultStartDate;
+    
+    let earliestStart = new Date('2099-12-31');
+    let latestEnd = new Date('1970-01-01');
+    
+    projAllocs.forEach(a => {
+      const start = new Date(a.startDate);
+      const end = new Date(a.endDate);
+      if (start < earliestStart) earliestStart = start;
+      if (end > latestEnd) latestEnd = end;
+    });
+    
+    if (earliestStart > latestEnd) return defaultStartDate;
+    
+    // Calculate midpoint
+    const midTime = earliestStart.getTime() + (latestEnd.getTime() - earliestStart.getTime()) / 2;
+    let midDate = new Date(midTime);
+    
+    while(!isWorkingDay(midDate)) {
+      midDate.setDate(midDate.getDate() + 1);
+    }
+    
+    return midDate.toISOString().split('T')[0];
+  };
+
   const handleGenerateSchedule = async () => {
     if (!resources || !readyProjects.length) return;
     setIsScheduling(true);
@@ -115,7 +144,7 @@ export const Dashboard = () => {
     setShowErrorModal(false);
     
     try {
-      console.group('🚀 智能排期深度追踪 (步进式扣减排期法)');
+      console.group('🚀 智能排期深度追踪 (两阶段步进扣减排期法)');
       setCurrentStep(1);
       setScheduleStatus('🚀 清理历史数据，准备进入队列...');
       await db.allocations.clear();
@@ -123,99 +152,114 @@ export const Dashboard = () => {
       let currentAllocations: any[] = [];
       const defaultStart = `${selectedYear}-${String(startMonth).padStart(2, '0')}-01`;
 
-      // The Loop: Process projects one by one by priority
-      // readyProjects are already sorted by insertion order (which we treat as priority)
-      for (let i = 0; i < readyProjects.length; i++) {
-        const project = readyProjects[i];
-        
-        setCurrentStep(2);
-        setScheduleStatus(`🛠️ 正在处理 [${i+1}/${readyProjects.length}]: ${project.name}...`);
-        
-        // 1. Run local audit to get current state
-        const { gaps, idle } = runAudit(readyProjects, resources, currentAllocations);
-        const pGap = gaps.find(g => Number(g.id) === Number(project.id));
-        
-        if (!pGap) {
-           console.log(`[Queue] Project ${project.name} is fully scheduled or has no gaps.`);
-           continue;
+      // Helper function to process a specific phase for all projects
+      const processPhase = async (phase: 'dev' | 'test') => {
+        for (let i = 0; i < readyProjects.length; i++) {
+          const project = readyProjects[i];
+          
+          setScheduleStatus(`🛠️ 阶段${phase === 'dev' ? '一' : '二'}: 正在分配 ${phase.toUpperCase()} 资源 [${i+1}/${readyProjects.length}]: ${project.name}...`);
+          
+          const { gaps, idle } = runAudit(readyProjects, resources, currentAllocations);
+          const pGap = gaps.find(g => Number(g.id) === Number(project.id));
+          
+          if (!pGap) continue;
+          
+          const gapAmount = phase === 'dev' ? pGap.devGap : pGap.testGap;
+          if (gapAmount <= 0) continue;
+          
+          const relevantIdle = idle.filter(r => {
+             if (phase === 'dev') return ['前端工程师', '后端工程师', 'APP工程师', '全栈工程师'].includes(r.role);
+             return ['测试工程师'].includes(r.role);
+          });
+
+          if (relevantIdle.length === 0) {
+             console.log(`[Queue] No idle ${phase} resources left. Stopping for ${project.name}.`);
+             continue;
+          }
+
+          console.log(`[Queue] Processing ${phase.toUpperCase()}: ${project.name} | Gap: ${gapAmount}`);
+          
+          let suggestions: AIMicroAllocation[] = [];
+          try {
+             suggestions = await suggestAllocationForProject({
+               id: project.id!,
+               name: project.name,
+               gap: gapAmount,
+               techStack: (project as any).techStack || '',
+               domain: (project as any).domain || '',
+               startDate: project.startDate,
+               endDate: project.endDate
+             }, relevantIdle, phase, strategy);
+             console.log(`[AI Response] ${phase} Suggestions for ${project.name}:`, suggestions);
+          } catch(e) {
+             console.warn(`[AI Error] Failed to get ${phase} suggestion for ${project.name}`, e);
+             continue;
+          }
+
+          let savedCount = 0;
+          for (const sug of suggestions) {
+             const resource = resources.find(r => Number(r.id) === Number(sug.resourceId));
+             if (!resource) continue;
+
+             const { gaps: currentGaps, idle: currentIdle } = runAudit(readyProjects, resources, currentAllocations);
+             const currentPGap = currentGaps.find(g => Number(g.id) === Number(project.id));
+             const currentRIdle = currentIdle.find(r => Number(r.id) === Number(resource.id));
+             
+             if (!currentPGap || !currentRIdle) continue;
+
+             const targetGapAmount = phase === 'dev' ? currentPGap.devGap : currentPGap.testGap;
+             
+             const finalMd = Math.min(
+               Math.max(1, Math.round(sug.allocatedMd)), 
+               targetGapAmount,                          
+               currentRIdle.idleMd                       
+             );
+
+             if (finalMd >= 1) {
+                // For dev phase, use project start or default. For test phase, use dev midpoint.
+                let pStartStr = isValidDateStr(project.startDate) ? project.startDate! : defaultStart;
+                if (phase === 'test') {
+                   pStartStr = calculateTestStartDate(project.id!, currentAllocations, pStartStr);
+                }
+                
+                const startDate = findNextAvailableDate(resource.id!, currentAllocations, pStartStr);
+                const allocationPercentage = sug.allocationPercentage || 100;
+                const endDate = calculateEndDate(startDate, finalMd, allocationPercentage);
+
+                const newAlloc = {
+                  resourceId: resource.id!,
+                  projectId: project.id!,
+                  allocationPercentage: allocationPercentage,
+                  startDate: startDate,
+                  endDate: endDate,
+                  allocationType: phase // saving phase type to db (requires schema update or it just saves adhoc)
+                };
+
+                currentAllocations.push(newAlloc);
+                await db.allocations.add(newAlloc as any);
+                savedCount++;
+                
+                console.log(`[Hard Deduction] ✅ Assigned ${resource.name} (${phase}) to ${project.name} | MD: ${finalMd} | Range: ${startDate} to ${endDate}`);
+             } else {
+                console.log(`[Hard Deduction] ⚠️ Rejected allocation for ${resource.name}. Suggested MD: ${sug.allocatedMd}, Cap: ${finalMd}`);
+             }
+          }
+          
+          if (savedCount > 0) {
+              await new Promise(resolve => setTimeout(resolve, 300));
+          }
         }
-        
-        if (idle.length === 0) {
-           console.log(`[Queue] No idle resources left. Stopping for ${project.name}.`);
-           break;
-        }
+      };
 
-        console.log(`[Queue] Processing: ${project.name} | Gaps -> Dev: ${pGap.devGap}, Test: ${pGap.testGap}`);
-        
-        // 2. Call AI Micro-Matcher
-        let suggestions: AIMicroAllocation[] = [];
-        try {
-           suggestions = await suggestAllocationForProject({
-             id: project.id!,
-             name: project.name,
-             devGap: pGap.devGap,
-             testGap: pGap.testGap
-           }, idle);
-           console.log(`[AI Response] Suggestions for ${project.name}:`, suggestions);
-        } catch(e) {
-           console.warn(`[AI Error] Failed to get suggestion for ${project.name}`, e);
-           continue;
-        }
+      // Execution Phase 1: Dev
+      setCurrentStep(2);
+      await processPhase('dev');
 
-        // 3. Hard Validation & Deduction
-        let savedCount = 0;
-        for (const sug of suggestions) {
-           const resource = resources.find(r => Number(r.id) === Number(sug.resourceId));
-           if (!resource) continue;
-
-           // Calculate dynamic caps based on REAL local state
-           const { gaps: currentGaps, idle: currentIdle } = runAudit(readyProjects, resources, currentAllocations);
-           const currentPGap = currentGaps.find(g => Number(g.id) === Number(project.id));
-           const currentRIdle = currentIdle.find(r => Number(r.id) === Number(resource.id));
-           
-           if (!currentPGap || !currentRIdle) continue;
-
-           const targetGapAmount = sug.targetGap === 'dev' ? currentPGap.devGap : currentPGap.testGap;
-           
-           // HARD CAP: AI suggestion cannot exceed project need or resource availability
-           const finalMd = Math.min(
-             Math.max(1, Math.round(sug.allocatedMd)), // AI suggested
-             targetGapAmount,                          // Max project needs
-             currentRIdle.idleMd                       // Max resource has
-           );
-
-           if (finalMd >= 1) {
-              const pStartStr = isValidDateStr(project.startDate) ? project.startDate! : defaultStart;
-              const startDate = findNextAvailableDate(resource.id!, currentAllocations, pStartStr);
-              const allocationPercentage = sug.allocationPercentage || 100;
-              const endDate = calculateEndDate(startDate, finalMd, allocationPercentage);
-
-              const newAlloc = {
-                resourceId: resource.id!,
-                projectId: project.id!,
-                allocationPercentage: allocationPercentage,
-                startDate: startDate,
-                endDate: endDate,
-              };
-
-              currentAllocations.push(newAlloc);
-              await db.allocations.add(newAlloc as any);
-              savedCount++;
-              
-              console.log(`[Hard Deduction] ✅ Assigned ${resource.name} to ${project.name} | MD: ${finalMd} | Range: ${startDate} to ${endDate}`);
-           } else {
-              console.log(`[Hard Deduction] ⚠️ Rejected allocation for ${resource.name}. Suggested MD: ${sug.allocatedMd}, Cap: ${finalMd}`);
-           }
-        }
-        
-        // Small delay to let the UI update its live query
-        if (savedCount > 0) {
-            await new Promise(resolve => setTimeout(resolve, 300));
-        }
-      }
+      // Execution Phase 2: Test
+      await processPhase('test');
       
       setCurrentStep(3);
-      setScheduleStatus('✨ 步进式排期完成！所有数学约束已严格执行。');
+      setScheduleStatus('✨ 两阶段排期完成！技术栈与时间依赖已严格执行。');
       console.groupEnd();
       
       setTimeout(() => {
@@ -278,6 +322,15 @@ export const Dashboard = () => {
             <ArrowRight size={14} className="text-gray-300" />
             <select value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))} className="appearance-none py-2 text-sm font-medium text-gray-600 border-none focus:ring-0 cursor-pointer">
               {months.map(m => <option key={m} value={m} disabled={m < startMonth}>{m}月</option>)}
+            </select>
+          </div>
+
+          <div className="flex items-center space-x-2 px-2 border-l border-gray-100">
+            <Settings2 size={14} className="text-gray-400" />
+            <select value={strategy} onChange={(e) => setStrategy(e.target.value as SchedulingStrategy)} className="appearance-none py-2 pr-4 text-sm font-medium text-gray-600 border-none focus:ring-0 cursor-pointer bg-transparent">
+              <option value="focused">专注模式 (1人1项目 100%)</option>
+              <option value="balanced">均衡模式 (分时多任务 50%)</option>
+              <option value="urgent">紧急模式 (加急推进 100%+)</option>
             </select>
           </div>
 
