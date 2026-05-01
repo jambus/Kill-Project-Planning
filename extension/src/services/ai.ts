@@ -6,6 +6,21 @@ export interface AISettings {
   baseUrl: string;
 }
 
+export const DEFAULT_SCHEDULING_PROMPT = `YOUR TASK:
+Match the best resources to fulfill the project's {{phase}} gap.
+Rules:
+1. DO NOT assign more MDs than the project needs.
+2. DO NOT assign more MDs than a resource's "idleMd".
+3. Skill Matching: Prioritize resources whose "skills" match the project's Tech Stack or Domain.
+4. Phase rules:
+   - If phase is 'dev', only assign Developers (前端/后端/APP/全栈).
+   - If phase is 'test', only assign Testers (测试工程师).
+5. Provide the "allocatedMd" (must be an integer >= 1) and "allocationPercentage".
+6. {{strategyInstruction}}
+
+Return ONLY a JSON Array with this exact format:
+[{"resourceId": 1, "targetGap": "{{phase}}", "allocatedMd": 5, "allocationPercentage": 100, "reason": "Skill match explanation..."}]`;
+
 export const getAISettings = async (): Promise<AISettings | null> => {
   const apiKey = await getStorageItem<string>('openAiApiKey');
   const model = await getStorageItem<string>('openAiModel') || 'gpt-4o-mini';
@@ -75,6 +90,14 @@ export const suggestAllocationForProject = async (
     strategyInstruction = 'FOCUSED STRATEGY: Prefer assigning resources at 100% allocationPercentage to finish one project before starting another.';
   }
 
+  // Load custom prompt from storage, or use default
+  const customPromptTemplate = await getStorageItem<string>('aiPromptTemplate') || DEFAULT_SCHEDULING_PROMPT;
+  
+  // Replace placeholders
+  const resolvedPromptRules = customPromptTemplate
+    .replace(/\{\{phase\}\}/g, phase)
+    .replace(/\{\{strategyInstruction\}\}/g, strategyInstruction);
+
   const prompt = `
 We are scheduling ONE project for the ${phase.toUpperCase()} phase. 
 Project Name: ${project.name}
@@ -85,20 +108,7 @@ Time Window: ${project.startDate || 'N/A'} to ${project.endDate || 'N/A'}
 Candidate Resources (with remaining idle capacity & skills):
 ${JSON.stringify(idleResources)}
 
-YOUR TASK:
-Match the best resources to fulfill the project's ${phase} gap.
-Rules:
-1. DO NOT assign more MDs than the project needs.
-2. DO NOT assign more MDs than a resource's "idleMd".
-3. Skill Matching: Prioritize resources whose "skills" match the project's Tech Stack or Domain.
-4. Phase rules:
-   - If phase is 'dev', only assign Developers (前端/后端/APP/全栈).
-   - If phase is 'test', only assign Testers (测试工程师).
-5. Provide the "allocatedMd" (must be an integer >= 1) and "allocationPercentage".
-6. ${strategyInstruction}
-
-Return ONLY a JSON Array with this exact format:
-[{"resourceId": 1, "targetGap": "${phase}", "allocatedMd": 5, "allocationPercentage": 100, "reason": "Skill match explanation..."}]
+${resolvedPromptRules}
 `;
 
   return await callAI(

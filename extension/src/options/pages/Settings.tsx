@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getStorageItem, setStorageItem } from '../../utils/storage';
-import { Save } from 'lucide-react';
+import { Save, RotateCcw } from 'lucide-react';
+import { DEFAULT_SCHEDULING_PROMPT } from '../../services/ai';
 
 export const Settings = () => {
   const [jiraDomain, setJiraDomain] = useState('');
@@ -9,6 +10,7 @@ export const Settings = () => {
   const [openAiKey, setOpenAiKey] = useState('');
   const [aiBaseUrl, setAiBaseUrl] = useState('https://api.openai.com/v1');
   const [aiModel, setAiModel] = useState('gpt-4o-mini');
+  const [aiPromptTemplate, setAiPromptTemplate] = useState('');
   
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{type: 'success'|'error', text: string} | null>(null);
@@ -21,6 +23,7 @@ export const Settings = () => {
       setOpenAiKey(await getStorageItem('openAiApiKey') || '');
       setAiBaseUrl(await getStorageItem('openAiBaseUrl') || 'https://api.openai.com/v1');
       setAiModel(await getStorageItem('openAiModel') || 'gpt-4o-mini');
+      setAiPromptTemplate(await getStorageItem('aiPromptTemplate') || DEFAULT_SCHEDULING_PROMPT);
     };
     loadSettings();
   }, []);
@@ -35,6 +38,7 @@ export const Settings = () => {
       await setStorageItem('openAiApiKey', openAiKey);
       await setStorageItem('openAiBaseUrl', aiBaseUrl);
       await setStorageItem('openAiModel', aiModel);
+      await setStorageItem('aiPromptTemplate', aiPromptTemplate);
       
       setMessage({ type: 'success', text: '设置已保存成功！' });
     } catch (err) {
@@ -45,12 +49,18 @@ export const Settings = () => {
     }
   };
 
+  const handleResetPrompt = () => {
+    if (confirm('确定要重置排期策略为默认规则吗？')) {
+      setAiPromptTemplate(DEFAULT_SCHEDULING_PROMPT);
+    }
+  };
+
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
+    <div className="max-w-3xl mx-auto space-y-8 pb-20">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">系统设置</h2>
-          <p className="text-gray-500 mt-1">配置第三方 API 密钥与服务域名</p>
+          <p className="text-gray-500 mt-1">配置第三方 API 密钥与核心排期策略</p>
         </div>
         {message && (
           <div className={`px-4 py-2 rounded shadow-sm text-sm ${message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -59,9 +69,9 @@ export const Settings = () => {
         )}
       </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-8">
         
-        <form onSubmit={handleSave} className="space-y-6">
+        <form onSubmit={handleSave} className="space-y-8">
           {/* Jira Section */}
           <div>
             <h3 className="text-lg font-medium text-gray-900 border-b pb-2 mb-4">Jira 配置 (用于页面悬浮注入)</h3>
@@ -96,9 +106,9 @@ export const Settings = () => {
             </div>
           </div>
 
-          {/* AI Section */}
+          {/* AI Configuration Section */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 border-b pb-2 mb-4">AI 排期引擎配置 (OpenAI 兼容)</h3>
+            <h3 className="text-lg font-medium text-gray-900 border-b pb-2 mb-4">AI 排期引擎网络配置</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">API Base URL</label>
@@ -130,19 +140,45 @@ export const Settings = () => {
                   />
                 </div>
               </div>
-              <p className="text-xs text-gray-500 mt-1">您的 Key 仅会加密保存在浏览器本地，不会上传到任何第三方服务器。</p>
+            </div>
+          </div>
+
+          {/* AI Strategy Prompt Section */}
+          <div>
+            <div className="flex justify-between items-end border-b pb-2 mb-4">
+              <h3 className="text-lg font-medium text-gray-900">AI 智能排期策略规则</h3>
+              <button 
+                type="button" 
+                onClick={handleResetPrompt}
+                className="text-sm flex items-center space-x-1 text-gray-500 hover:text-blue-600 transition-colors"
+              >
+                <RotateCcw size={14} />
+                <span>恢复默认规则</span>
+              </button>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                您可以自由编辑下方的 Prompt 模板来改变 AI 的排期决策准则。
+                请保留 <code className="bg-gray-100 px-1 py-0.5 rounded text-gray-700">{"{{phase}}"}</code> 和 <code className="bg-gray-100 px-1 py-0.5 rounded text-gray-700">{"{{strategyInstruction}}"}</code> 这两个核心占位符。
+              </p>
+              <textarea 
+                rows={15}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-xs text-gray-700 leading-relaxed bg-gray-50"
+                value={aiPromptTemplate}
+                onChange={e => setAiPromptTemplate(e.target.value)}
+              />
             </div>
           </div>
 
           {/* Actions */}
-          <div className="pt-4 flex items-center justify-end border-t border-gray-100">
+          <div className="pt-4 flex items-center justify-end border-t border-gray-100 sticky bottom-0 bg-white">
             <button
               type="submit"
               disabled={isSaving}
-              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium transition-colors disabled:opacity-50"
+              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold transition-all shadow-lg shadow-blue-100 disabled:opacity-50"
             >
-              <Save size={16} />
-              <span>保存配置</span>
+              <Save size={18} />
+              <span>保存所有设置</span>
             </button>
           </div>
         </form>

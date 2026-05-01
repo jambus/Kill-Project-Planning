@@ -223,8 +223,23 @@ export const Dashboard = () => {
                 }
                 
                 const startDate = findNextAvailableDate(resource.id!, currentAllocations, pStartStr);
+                
+                // Calculate absolute schedule boundary (last day of endMonth)
+                const lastDay = new Date(selectedYear, endMonth, 0).getDate();
+                const scheduleMaxDate = `${selectedYear}-${String(endMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+                
+                if (startDate > scheduleMaxDate) {
+                   console.log(`[Hard Deduction] ⚠️ Rejected allocation for ${resource.name}. StartDate ${startDate} exceeds schedule window ${scheduleMaxDate}.`);
+                   continue;
+                }
+
                 const allocationPercentage = sug.allocationPercentage || 100;
-                const endDate = calculateEndDate(startDate, finalMd, allocationPercentage);
+                let endDate = calculateEndDate(startDate, finalMd, allocationPercentage);
+                
+                if (endDate > scheduleMaxDate) {
+                   console.log(`[Hard Deduction] ⚠️ Truncated endDate for ${resource.name} from ${endDate} to window limit ${scheduleMaxDate}.`);
+                   endDate = scheduleMaxDate;
+                }
 
                 const newAlloc = {
                   resourceId: resource.id!,
