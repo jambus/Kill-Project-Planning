@@ -43,6 +43,16 @@ export const Layout = () => {
             );
           })}
         </nav>
+
+        {/* Sidebar Footer / Version */}
+        <div className="p-4 border-t border-gray-100">
+          <div className="flex items-center justify-between px-2">
+            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Version</span>
+            <span className="text-[10px] font-bold text-blue-400 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+              v1.0.2
+            </span>
+          </div>
+        </div>
       </aside>
 
       {/* Main Content */}

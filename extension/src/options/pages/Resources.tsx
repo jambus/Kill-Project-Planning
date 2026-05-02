@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import { Trash2, Edit2, UserPlus, Save, X, Users, Upload, FileDown, CheckCircle2 } from 'lucide-react';
+import { Trash2, Edit2, UserPlus, Save, X, Users, Upload, FileDown, CheckCircle2, Download } from 'lucide-react';
 import { addResource, deleteResource, updateResource } from '../../db/services';
 import { importResourcesFromFile } from '../../services/fileImport';
 
@@ -112,6 +112,27 @@ export const Resources = () => {
     link.click();
   };
 
+  const exportToCSV = () => {
+    if (!resources || resources.length === 0) return;
+    
+    const headers = ['Name', 'Role', 'Capacity %', 'Skills'];
+    const csvContent = [
+      headers.join(','),
+      ...resources.map(r => [
+        `"${r.name}"`,
+        `"${r.role}"`,
+        r.capacity,
+        `"${r.skills.join(', ')}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `resources_export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -136,6 +157,16 @@ export const Resources = () => {
           >
             <FileDown size={16} />
             <span>模板下载</span>
+          </button>
+
+          <button 
+            onClick={exportToCSV}
+            disabled={!resources || resources.length === 0}
+            className="flex items-center space-x-2 bg-white hover:bg-gray-50 text-gray-600 px-4 py-2.5 rounded-xl border border-gray-200 shadow-sm text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            title="下载当前人员列表为 CSV"
+          >
+            <Download size={16} />
+            <span>人员导出</span>
           </button>
 
           <button 
