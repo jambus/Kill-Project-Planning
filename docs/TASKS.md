@@ -113,71 +113,91 @@
 
 ## 阶段九：AI 优先级微批次与完整性回滚 (Phase 9: Priority-based Mini-Batches & Integrity Rollback)
 
-- [ ] 9.1 **重构排期循环为优先级小批量 (Priority Mini-Batches)**
-    - [ ] 9.1.1 按项目优先级顺序（CSV 导入顺序），将项目切分为小批次（如 3 个一组）。
-    - [ ] 9.1.2 针对每个小批次，按序执行 Dev 阶段和 Test 阶段的批量请求与扣减，确保高优项目优先闭环。
-- [ ] 9.2 **引入排期完整性回滚机制 (All-or-Nothing Rollback)**
-    - [ ] 9.2.1 在全局排期完成后，增加完整性审计 (Integrity Audit) 阶段。
-    - [ ] 9.2.2 扫描项目：若某项目同时需要 Dev 和 Test，但仅分配了其一（严重脱节的“半拉子工程”），则视为分配失败。
-    - [ ] 9.2.3 触发回滚：自动撤销该项目已分配的所有资源，将档期人天释放回资源池。
-- [ ] 9.3 **验证与交互更新**
-    - [ ] 9.3.1 更新排期面板文案，展示“正在进行小批量优先级排期”与“审计与回滚校验”状态。
-    - [ ] 9.3.2 执行编译并更新。
+- [x] **DONE** 9.1 **重构排期循环为优先级小批量 (Priority Mini-Batches)**
+    - [x] **DONE** 9.1.1 按项目优先级顺序（CSV 导入顺序），将项目切分为小批次（如 3 个一组）。
+    - [x] **DONE** 9.1.2 针对每个小批次，按序执行 Dev 阶段和 Test 阶段的批量请求与扣减，确保高优项目优先闭环。
+- [x] **DONE** 9.2 **引入排期完整性回滚机制 (All-or-Nothing Rollback)**
+    - [x] **DONE** 9.2.1 在全局排期完成后，增加完整性审计 (Integrity Audit) 阶段。
+    - [x] **DONE** 9.2.2 扫描项目：若某项目同时需要 Dev 和 Test，但仅分配了其一（严重脱节的“半拉子工程”），则视为分配失败。
+    - [x] **DONE** 9.2.3 触发回滚：自动撤销该项目已分配的所有资源，将档期人天释放回资源池。
+- [x] **DONE** 9.3 **验证与交互更新**
+    - [x] **DONE** 9.3.1 更新排期面板文案，展示“正在进行小批量优先级排期”与“审计与回滚校验”状态。
+    - [x] **DONE** 9.3.2 执行编译并更新。
 
 ## 阶段十：极限产能收割与自适应调度 (Phase 10: Adaptive Matching & Capacity Harvesting)
 
-- [ ] **TODO** 10.1 **AI 引擎支持“解除封印”模式 (Relaxed Matching Mode)**
-    - [ ] 10.1.1 在 `ai.ts` 的 Prompt 中增加强制指令：当进入补排模式时，彻底忽略 `skills` 标签，转为纯角色匹配（Role-only matching）。
-- [ ] **TODO** 10.2 **实现“三段式”收割调度流 (Three-Pass Workflow)**
-    - [ ] 10.2.1 第一段：按批次执行技能优先排期（现有逻辑）。
-    - [ ] 10.2.2 第二段：执行完整性审计回滚，释放无效占位的资源（现有逻辑）。
-    - [ ] 10.2.3 第三段：**全量收割补排 (Harvest Pass)**。将所有剩余缺口项目和回滚释放的资源汇总，执行“解除封印”的批量 AI 调用，消除闲置。
-- [ ] **TODO** 10.3 **构建与发布验证**
-    - [ ] 10.3.1 执行全流程测试，验证“高优被回滚后，人力是否被低优迅速捡漏”。
+- [x] **DONE** 10.1 **AI 引擎支持“解除封印”模式 (Relaxed Matching Mode)**
+    - [x] **DONE** 10.1.1 在 `ai.ts` 的 Prompt 中增加强制指令：当进入补排模式时，彻底忽略 `skills` 标签，转为纯角色匹配（Role-only matching）。
+- [x] **DONE** 10.2 **实现“三段式”收割调度流 (Three-Pass Workflow)**
+    - [x] **DONE** 10.2.1 第一段：按批次执行技能优先排期（现有逻辑）。
+    - [x] **DONE** 10.2.2 第二段：执行完整性审计回滚，释放无效占位的资源（现有逻辑）。
+    - [x] **DONE** 10.2.3 第三段：**全量收割补排 (Harvest Pass)**。将所有剩余缺口项目和回滚释放的资源汇总，执行“解除封印”的批量 AI 调用，消除闲置。
+- [x] **DONE** 10.3 **构建与发布验证**
+    - [x] 10.3.1 执行全流程测试，验证“高优被回滚后，人力是否被低优迅速捡漏”。
+
+## 阶段十一：Prompt 增强与日历感知 (Optimization Phase 1 - Solution C)
+
+- [x] **DONE** 11.1 **资源信息摘要增强**：在 `suggestAllocationsForBatch` 传给 AI 的资源对象中，增加 `scheduleSummary` 字段，描述该员工在当前排期窗口内的已占用时间段，让 AI 感知“哪里有空档”。
+- [x] **DONE** 11.2 **强制贪心指令注入**：在系统 Prompt 中加入「资源利用率惩罚」逻辑，明确告知 AI：留下闲置资源是失败的，必须最大化总 MD 分配。
+
+## 阶段十二：并行排期支持与循环收割 (Optimization Phase 2 - Solution B.1 & B.3)
+
+- [x] **DONE** 12.1 **支持百分比并行 (B.1)**：重构 `findNextAvailableDate` 为 `findEarliestAvailableDate`。不再简单找 `max(endDate)`，而是计算每一天的「已占用百分比」，只要「当日已用 + 本次建议 <= 100%」即可排入，支持 50%+50% 并行。
+- [x] **DONE** 12.2 **循环补排至收敛 (B.3)**：将 PASS 3 的收割逻辑改为 `while` 循环，只要本轮有新增分配且资源未耗尽，就持续迭代（上限 3 轮），解决 AI 建议保守的问题。
+
+## 阶段十三：回滚重排与填充优先级 (Optimization Phase 3 - Solution B.2 & B.4)
+
+- [x] **DONE** 13.1 **回滚项目重试队列 (B.2)**：PASS 2 审计回滚的项目进入 `retryQueue`。在 PASS 3 开始前，先对这些项目进行一次「Dev+Test 联合补排」。
+- [x] **DONE** 13.2 **填充优先级逻辑 (B.4)**：收割阶段的请求按优先级梯度发送，确保高优项目的残余缺口（残余工时）比低优项目更早触达 AI。
+
+## 阶段十四：时间槽位矩阵重构 (Optimization Phase 4 - Solution A)
+
+- [x] **DONE** 14.1 **DailySlot 矩阵建模**：彻底重构资源可用性模型，建立以「人/天」为单位的百分比矩阵。
+- [x] **DONE** 14.2 **AI 窗口协议对接**：传给 AI 标准的 `availableWindows` 阵列，实现像素级的资源匹配。
 ## 阶段十一：资源利用率深度优化 - 时间槽位与循环收敛 (Phase 11: Deep Utilization Optimization)
 
 ### P0 - Prompt 贪心策略（零逻辑改动，立即见效）
 
-- [ ] **TODO** 11.1 **Prompt 贪心指令强化 (Greedy Prompt Enhancement)**
-    - [ ] 11.1.1 在 AI 系统消息中注入强制贪心指令：`MUST allocate ALL idleMd`，惩罚留余量行为，要求 AI 尽量将所有闲置资源分配殆尽。
-    - [ ] 11.1.2 Prompt 中传入资源的已排日历摘要（如 `已排: 04-01~04-10 @项目A, 空闲: 04-11~04-30`），让 AI 做出时间感知的决策，避免盲目建议导致 `scheduleMaxDate` 截断。
-    - [ ] 11.1.3 AI 调用时按优先级分梯度传入项目：先传 P0 项目让 AI 分完，再传 P1 项目，避免 AI 在单次调用中"均摊"资源给低优项目。
+- [x] **DONE** 11.1 **Prompt 贪心指令强化 (Greedy Prompt Enhancement)**
+    - [x] **DONE** 11.1.1 在 AI 系统消息中注入强制贪心指令：`MUST allocate ALL idleMd`，惩罚留余量行为，要求 AI 尽量将所有闲置资源分配殆尽。
+    - [x] **DONE** 11.1.2 Prompt 中传入资源的已排日历摘要（如 `已排: 04-01~04-10 @项目A, 空闲: 04-11~04-30`），让 AI 做出时间感知的决策，避免盲目建议导致 `scheduleMaxDate` 截断。
+    - [x] **DONE** 11.1.3 AI 调用时按优先级分梯度传入项目：先传 P0 项目让 AI 分完，再传 P1 项目，避免 AI 在单次调用中"均摊"资源给低优项目。
 
 ### P1 - 并行排期修复与循环补排（核心逻辑改造）
 
-- [ ] **TODO** 11.2 **修复 `findNextAvailableDate` 支持并行排期 (Parallel Scheduling Fix)**
-    - [ ] 11.2.1 当 `allocationPercentage < 100` 时，不再等前一个项目结束才开始下一个。改为检查资源当日已用百分比之和，只要 `已用 + 本次 <= 100` 即可从当天开始，实现真正的多项目并行。
-    - [ ] 11.2.2 新增 `getResourceDailyUsage(resourceId, date, currentAllocations)` 工具函数，返回指定资源在指定日期的已占用百分比总和。
+- [x] **DONE** 11.2 **修复 `findNextAvailableDate` 支持并行排期 (Parallel Scheduling Fix)**
+    - [x] **DONE** 11.2.1 当 `allocationPercentage < 100` 时，不再等前一个项目结束才开始下一个。改为检查资源当日已用百分比之和，只要 `已用 + 本次 <= 100` 即可从当天开始，实现真正的多项目并行。
+    - [x] **DONE** 11.2.2 新增 `getResourceDailyUsage(resourceId, date, currentAllocations)` 工具函数，返回指定资源在指定日期的已占用百分比总和。
 
-- [ ] **TODO** 11.3 **PASS 3 循环补排直到收敛 (Iterative Harvesting Until Convergence)**
-    - [ ] 11.3.1 将当前单次全局补排改为 `while` 循环：每轮调用 AI 后 `applySuggestions`，重新计算 gaps & idle，直到满足退出条件。
-    - [ ] 11.3.2 退出条件：① gaps 为空 ② idle 为空 ③ AI 返回空数组（无法继续优化）④ 达到最大轮次（3 轮）。
-    - [ ] 11.3.3 每轮循环前重新构建项目缺口列表，按优先级排序，确保高优项目残余缺口始终优先被填充。
+- [x] **DONE** 11.3 **PASS 3 循环补排直到收敛 (Iterative Harvesting Until Convergence)**
+    - [x] **DONE** 11.3.1 将当前单次全局补排改为 `while` 循环：每轮调用 AI 后 `applySuggestions`，重新计算 gaps & idle，直到满足退出条件。
+    - [x] **DONE** 11.3.2 退出条件：① gaps 为空 ② idle 为空 ③ AI 返回空数组（无法继续优化）④ 达到最大轮次（3 轮）。
+    - [x] **DONE** 11.3.3 每轮循环前重新构建项目缺口列表，按优先级排序，确保高优项目残余缺口始终优先被填充。
 
 ### P2 - 回滚重排与填充优先级（消除浪费）
 
-- [ ] **TODO** 11.4 **回滚后立即重排机制 (Retry After Rollback)**
-    - [ ] 11.4.1 PASS 2 回滚的项目不直接丢弃，加入 `retryQueue`。
-    - [ ] 11.4.2 在 PASS 3 之前，对 `retryQueue` 中的项目执行一次完整的 dev+test 联合排期（此时资源池已包含回滚释放的余量），优先恢复被回滚的高优项目。
+- [x] **DONE** 11.4 **回滚后立即重排机制 (Retry After Rollback)**
+    - [x] **DONE** 11.4.1 PASS 2 回滚的项目不直接丢弃，加入 `retryQueue`。
+    - [x] **DONE** 11.4.2 在 PASS 3 之前，对 `retryQueue` 中的项目执行一次完整的 dev+test 联合排期（此时资源池已包含回滚释放的余量），优先恢复被回滚的高优项目。
 
-- [ ] **TODO** 11.5 **填充优先级排序 (Gap-Fill Priority Ordering)**
-    - [ ] 11.5.1 PASS 3 全局补排时，项目缺口列表严格按优先级（DB ID 自增序）排序传给 AI。
-    - [ ] 11.5.2 Prompt 中显式标注"第 1 个项目优先级最高，必须优先满足"，避免 AI 均摊。
+- [x] **DONE** 11.5 **填充优先级排序 (Gap-Fill Priority Ordering)**
+    - [x] **DONE** 11.5.1 PASS 3 全局补排时，项目缺口列表严格按优先级（DB ID 自增序）排序传给 AI。
+    - [x] **DONE** 11.5.2 Prompt 中显式标注"第 1 个项目优先级最高，必须优先满足"，避免 AI 均摊。
 
 ### P3 - 时间槽位矩阵（架构级优化，接近理论最优）
 
-- [ ] **TODO** 11.6 **引入资源日历槽位矩阵 (Resource Calendar Slot Matrix)**
-    - [ ] 11.6.1 定义 `DailySlot` 数据结构：`{ date, totalCapacity, usedCapacity, available }`，为每个资源在排期窗口内生成完整的每日可用百分比数组。
-    - [ ] 11.6.2 实现 `buildResourceCalendar(resources, allocations, rangeStart, rangeEnd)` 函数，遍历现有分配填充槽位占用。
+- [x] **DONE** 11.6 **引入资源日历槽位矩阵 (Resource Calendar Slot Matrix)**
+    - [x] **DONE** 11.6.1 定义 `DailySlot` 数据结构：`{ date, totalCapacity, usedCapacity, available }`，为每个资源在排期窗口内生成完整的每日可用百分比数组。
+    - [x] **DONE** 11.6.2 实现 `buildResourceCalendar(resources, allocations, rangeStart, rangeEnd)` 函数，遍历现有分配填充槽位占用。
 
-- [ ] **TODO** 11.7 **基于槽位的智能起止日期计算 (Slot-Aware Date Calculation)**
-    - [ ] 11.7.1 实现 `findAvailableSlotWindow(resourceId, calendar, neededMd, percentage)` 函数：在日历矩阵中寻找连续 N 天 `available >= percentage` 的最早窗口。
-    - [ ] 11.7.2 替换当前 `findNextAvailableDate`，使排期引擎能感知真实的每日空闲分布。
+- [x] **DONE** 11.7 **基于槽位的智能起止日期计算 (Slot-Aware Date Calculation)**
+    - [x] **DONE** 11.7.1 实现 `findAvailableSlotWindow(resourceId, calendar, neededMd, percentage)` 函数：在日历矩阵中寻找连续 N 天 `available >= percentage` 的最早窗口。
+    - [x] **DONE** 11.7.2 替换当前 `findNextAvailableDate`，使排期引擎能感知真实的每日空闲分布。
 
-- [ ] **TODO** 11.8 **传递可用时间窗口给 AI (Availability Windows in Prompt)**
-    - [ ] 11.8.1 将资源信息从 `{id, name, idleMd}` 升级为 `{id, name, availableWindows: [{from, to, dailyAvailable}]}`，让 AI 做出时间对齐的精准建议。
-    - [ ] 11.8.2 AI 返回结构增加 `suggestedStartDate` 字段，减少 JS 层的日期推算偏差。
+- [x] **DONE** 11.8 **传递可用时间窗口给 AI (Availability Windows in Prompt)**
+    - [x] **DONE** 11.8.1 将资源信息从 `{id, name, idleMd}` 升级为 `{id, name, availableWindows: [{from, to, dailyAvailable}]}`，让 AI 做出时间对齐的精准建议。
+    - [x] **DONE** 11.8.2 AI 返回结构增加 `suggestedStartDate` 字段，减少 JS 层的日期推算偏差。
 
-- [ ] **TODO** 11.9 **验证与度量 (Validation & Metrics)**
-    - [ ] 11.9.1 排期完成后，输出全局利用率统计：`总可用人天 / 总已排人天 = 利用率 %`，作为排期质量评分展示在大盘上。
-    - [ ] 11.9.2 执行 `npm run build` 确保所有改动通过编译。
+- [x] **DONE** 11.9 **验证与度量 (Validation & Metrics)**
+    - [x] **DONE** 11.9.1 排期完成后，输出全局利用率统计：`总可用人天 / 总已排人天 = 利用率 %`，作为排期质量评分展示在大盘上。
+    - [x] **DONE** 11.9.2 执行 `npm run build` 确保所有改动通过编译。

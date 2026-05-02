@@ -8,17 +8,19 @@ export interface AISettings {
 
 export const DEFAULT_SCHEDULING_PROMPT = `YOUR TASK:
 Match the best resources to fulfill the {{phase}} gaps for a BATCH of projects.
-Rules:
-1. DO NOT assign more MDs than a project needs.
-2. DO NOT assign more MDs than a resource's "idleMd" across all projects they are assigned to.
-3. {{skillRule}}
-4. Phase rules:
+
+CRITICAL INSTRUCTIONS:
+1. MAXIMIZE UTILIZATION: You MUST allocate ALL available "idleMd" across ALL candidate resources. 
+2. NO WASTE: Leaving a resource with idleMd > 0 when projects still have gaps is a FAILURE. 
+3. GREEDY MATCHING: If a resource has 20 idleMd and a project only needs 5, find other projects to fill the remaining 15. 
+4. {{skillRule}}
+5. Phase rules:
    - If phase is 'dev', only assign Developers (前端/后端/APP/全栈).
    - If phase is 'test', only assign Testers (测试工程师). Testing can start as early as the same day as development, but MUST NOT start before development.
-5. Provide the "allocatedMd" (must be an integer >= 1) and "allocationPercentage".
-6. {{strategyInstruction}}
+6. Provide "allocatedMd" (integer >= 1) and "allocationPercentage".
+7. {{strategyInstruction}}
 
-Return ONLY a JSON Array with this exact format (do not wrap in markdown blocks, just raw JSON):
+Return ONLY a JSON Array with this exact format (do not wrap in markdown blocks, raw JSON only):
 [{"projectId": 1, "resourceId": 1, "targetGap": "{{phase}}", "allocatedMd": 5, "allocationPercentage": 100, "reason": "Reason..."}]`;
 
 export const getAISettings = async (): Promise<AISettings | null> => {
@@ -71,11 +73,11 @@ export interface AIMicroAllocation {
 export type SchedulingStrategy = 'balanced' | 'focused' | 'urgent';
 
 /**
- * Batch Scheduling with Adaptive Matching (Strict vs Relaxed)
+ * Enhanced Batch Scheduling with Calendar Awareness & Greedy Logic
  */
 export const suggestAllocationsForBatch = async (
   projects: { id: number; name: string; gap: number; techStack?: string; domain?: string; startDate?: string; endDate?: string }[],
-  idleResources: { id: number; name: string; role: string; idleMd: number; skills: string[] }[],
+  idleResources: { id: number; name: string; role: string; idleMd: number; skills: string[]; scheduleSummary?: string }[],
   phase: 'dev' | 'test',
   strategy: SchedulingStrategy = 'focused',
   isRelaxed: boolean = false
@@ -85,17 +87,16 @@ export const suggestAllocationsForBatch = async (
 
   let strategyInstruction = '';
   if (strategy === 'balanced') {
-    strategyInstruction = 'BALANCED: Prefer 50% allocation for multitasking.';
+    strategyInstruction = 'BALANCED MODE: You MUST prefer 50% allocation to allow resources to work on multiple projects concurrently.';
   } else if (strategy === 'urgent') {
-    strategyInstruction = 'URGENT: Maximize allocation to finish faster.';
+    strategyInstruction = 'URGENT MODE: Prioritize 100% allocation to finish projects as early as possible.';
   } else {
-    strategyInstruction = 'FOCUSED: Prefer 100% allocation.';
+    strategyInstruction = 'FOCUSED MODE: Prefer 100% allocation for one project at a time.';
   }
 
-  // Adaptive Matching Logic
   const skillRule = isRelaxed 
-    ? 'RELAXED MATCHING: IGNORE "skills" labels. Your ONLY priority is to use ALL idleMd to fill ALL gaps. Any resource with matching role can do any project task.' 
-    : 'STRICT MATCHING: Prioritize resources whose "skills" match the project Tech Stack/Domain.';
+    ? 'RELAXED MATCHING: IGNORE skills. Any resource with matching role can do any task.' 
+    : 'STRICT MATCHING: Match skills to project Tech Stack/Domain first.';
 
   const customPromptTemplate = await getStorageItem<string>('aiPromptTemplate') || DEFAULT_SCHEDULING_PROMPT;
   const resolvedPromptRules = customPromptTemplate
@@ -104,15 +105,15 @@ export const suggestAllocationsForBatch = async (
     .replace(/\{\{skillRule\}\}/g, skillRule);
 
   const systemMsg = `You are an expert resource allocation optimizer.
-Mode: ${isRelaxed ? 'MAX UTILIZATION (Greedy)' : 'PRECISION MATCHING'}.
+Mode: ${isRelaxed ? 'MAX UTILIZATION' : 'PRECISION MATCHING'}.
   
-Candidate Resources:
+Candidate Resources (Aware of their current busy/idle periods):
 ${JSON.stringify(idleResources)}
 
 ${resolvedPromptRules}`;
 
   const prompt = `Batch of ${projects.length} projects for ${phase.toUpperCase()}.
-Projects:
+Projects to fulfill:
 ${JSON.stringify(projects)}
 Return ONLY a JSON Array.`;
 

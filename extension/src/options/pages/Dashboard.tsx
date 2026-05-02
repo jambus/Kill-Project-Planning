@@ -5,6 +5,13 @@ import { suggestAllocationsForBatch, type AIMicroAllocation, type SchedulingStra
 import { Users, ChevronDown, ArrowRight, ClipboardList, AlertTriangle, FileWarning, Search, TriangleAlert, User, Briefcase, RefreshCcw, CheckCircle2, Settings2, Zap } from 'lucide-react';
 import { calculateMonthlyMD, getWorkingDays, calculateEndDate, isWorkingDay, isValidDateStr } from '../../utils/dateUtils';
 
+interface DailySlot {
+  date: string;
+  totalCapacity: number;
+  usedCapacity: number;
+  available: number;
+}
+
 export const Dashboard = () => {
   const projects = useLiveQuery(() => db.projects.toArray());
   const resources = useLiveQuery(() => db.resources.toArray());
@@ -43,34 +50,81 @@ export const Dashboard = () => {
   const scheduleMaxDate = `${selectedYear}-${String(endMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
   const defaultStart = `${selectedYear}-${String(startMonth).padStart(2, '0')}-01`;
 
-  // --- Reusable Audit Logic ---
+  // --- Reusable Time Slot Logic (方案 A) ---
+  const generateResourceCalendar = (res: any, currentAllocations: any[]) => {
+    const calendar: DailySlot[] = [];
+    const rangeStart = new Date(selectedYear, startMonth - 1, 1);
+    const rangeEnd = new Date(selectedYear, endMonth, 0);
+    
+    let current = new Date(rangeStart);
+    while (current <= rangeEnd) {
+      if (isWorkingDay(current)) {
+        const dateStr = current.toISOString().split('T')[0];
+        let used = 0;
+        currentAllocations.filter(a => Number(a.resourceId) === Number(res.id)).forEach(a => {
+          if (dateStr >= a.startDate && dateStr <= a.endDate) {
+            used += (a.allocationPercentage || 0);
+          }
+        });
+        calendar.push({
+          date: dateStr,
+          totalCapacity: res.capacity,
+          usedCapacity: used,
+          available: Math.max(0, res.capacity - used)
+        });
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    return calendar;
+  };
+
+  const getAvailableWindows = (calendar: DailySlot[]) => {
+    const windows: { from: string, to: string, dailyAvailable: number }[] = [];
+    if (calendar.length === 0) return windows;
+
+    let currentWindow: any = null;
+
+    calendar.forEach(slot => {
+      if (slot.available >= 1) {
+        if (!currentWindow || currentWindow.dailyAvailable !== slot.available) {
+          if (currentWindow) windows.push(currentWindow);
+          currentWindow = { from: slot.date, to: slot.date, dailyAvailable: slot.available };
+        } else {
+          currentWindow.to = slot.date;
+        }
+      } else {
+        if (currentWindow) {
+          windows.push(currentWindow);
+          currentWindow = null;
+        }
+      }
+    });
+    if (currentWindow) windows.push(currentWindow);
+    return windows;
+  };
+
   const runAudit = (currentProjects: any[], currentResources: any[], currentAllocations: any[]) => {
     const gaps = currentProjects.map(p => {
       const pAllocations = currentAllocations.filter(a => Number(a.projectId) === Number(p.id));
-      let allocatedDevMd = 0, allocatedTestMd = 0;
+      let dev = 0, test = 0;
       pAllocations.forEach(a => {
         const res = currentResources.find(r => Number(r.id) === Number(a.resourceId));
         const workingDays = getWorkingDays(new Date(a.startDate), new Date(a.endDate));
-        const totalMd = Math.round((workingDays * (a.allocationPercentage || 0)) / 100);
-        if (a.allocationType === 'test' || res?.role === '测试工程师') allocatedTestMd += totalMd; else allocatedDevMd += totalMd;
+        const md = Math.round((workingDays * (a.allocationPercentage || 0)) / 100);
+        if (a.allocationType === 'test' || res?.role === '测试工程师') test += md; else dev += md;
       });
-      return { ...p, devGap: Math.max(0, p.devTotalMd - allocatedDevMd), testGap: Math.max(0, p.testTotalMd - allocatedTestMd) };
+      return { ...p, devGap: Math.max(0, p.devTotalMd - dev), testGap: Math.max(0, p.testTotalMd - test) };
     }).filter(p => p.devGap >= 1 || p.testGap >= 1);
 
-    const rangeStart = new Date(selectedYear, startMonth - 1, 1);
-    const rangeEnd = new Date(selectedYear, endMonth, 0);
-    const totalWorkingDaysInRange = getWorkingDays(rangeStart, rangeEnd);
     const idle = currentResources.map(r => {
-      const rAllocations = currentAllocations.filter(a => Number(a.resourceId) === Number(r.id));
-      let totalAllocatedMdInRange = 0;
-      displayMonths.forEach(m => {
-        rAllocations.forEach(a => {
-          totalAllocatedMdInRange += Math.round(calculateMonthlyMD(a.startDate, a.endDate, a.allocationPercentage, m.year, m.month));
-        });
-      });
-      const capacityMd = Math.round((totalWorkingDaysInRange * r.capacity) / 100);
-      const utilization = capacityMd > 0 ? (totalAllocatedMdInRange / capacityMd) * 100 : 0;
-      return { ...r, idleMd: Math.max(0, capacityMd - totalAllocatedMdInRange), utilization };
+      const calendar = generateResourceCalendar(r, currentAllocations);
+      const availableWindows = getAvailableWindows(calendar);
+      const idleMd = calendar.reduce((sum, slot) => sum + (slot.available / 100), 0);
+      const capacityMd = calendar.length * (r.capacity / 100);
+      const utilization = capacityMd > 0 ? ((capacityMd - idleMd) / capacityMd) * 100 : 0;
+      
+      const summary = availableWindows.map(w => `${w.from}~${w.to} (${w.dailyAvailable}%)`).join(', ');
+      return { ...r, idleMd: Math.round(idleMd), utilization, scheduleSummary: summary ? `Free Slots: ${summary}` : 'Full' };
     }).filter(r => r.idleMd >= 1);
 
     return { gaps, idle };
@@ -82,37 +136,28 @@ export const Dashboard = () => {
     const pending = projects.filter(p => p.devTotalMd === 0 && p.testTotalMd === 0);
     const { gaps, idle } = runAudit(ready, resources, allocations);
     return { readyProjects: ready, pendingProjects: pending, projectGaps: gaps, resourceIdle: idle };
-  }, [projects, resources, allocations, selectedYear, startMonth, endMonth, displayMonths]);
+  }, [projects, resources, allocations, selectedYear, startMonth, endMonth]);
 
-  const findNextAvailableDate = (resourceId: number, currentAllocations: any[], defaultStartDate: string) => {
-    const resourceAllocs = currentAllocations.filter(a => Number(a.resourceId) === Number(resourceId));
-    if (resourceAllocs.length === 0) return defaultStartDate;
-    const latestEnd = resourceAllocs.reduce((latest, a) => a.endDate > latest ? a.endDate : latest, '1970-01-01');
-    if (latestEnd < defaultStartDate) return defaultStartDate;
-    const nextDay = new Date(latestEnd);
-    nextDay.setDate(nextDay.getDate() + 1);
-    while(!isWorkingDay(nextDay)) nextDay.setDate(nextDay.getDate() + 1);
-    return nextDay.toISOString().split('T')[0];
+  const findEarliestFitDate = (resourceId: number, currentAllocations: any[], defaultStartDate: string, percentage: number) => {
+    const res = resources?.find(r => Number(r.id) === Number(resourceId));
+    if (!res) return "9999-12-31";
+    const calendar = generateResourceCalendar(res, currentAllocations);
+    const fit = calendar.find(slot => slot.date >= defaultStartDate && slot.available >= percentage);
+    return fit ? fit.date : "9999-12-31";
   };
 
   const calculateTestStartDate = (projectId: number, currentAllocations: any[], defaultStartDate: string) => {
     const projAllocs = currentAllocations.filter(a => Number(a.projectId) === Number(projectId));
     if (projAllocs.length === 0) return defaultStartDate;
-    
-    // Find the earliest start date among all dev allocations for this project
-    let earliestStart = new Date('2099-12-31');
+    let earliest = new Date('2099-12-31');
     projAllocs.forEach(a => {
       const s = new Date(a.startDate);
-      if (s < earliestStart) earliestStart = s;
+      if (s < earliest) earliest = s;
     });
-    
-    if (earliestStart.getFullYear() === 2099) return defaultStartDate;
-    
-    let testStartDate = new Date(earliestStart);
-    while(!isWorkingDay(testStartDate)) {
-      testStartDate.setDate(testStartDate.getDate() + 1);
-    }
-    return testStartDate.toISOString().split('T')[0];
+    if (earliest.getFullYear() === 2099) return defaultStartDate;
+    let d = new Date(earliest);
+    while(!isWorkingDay(d)) d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
   };
 
   const handleGenerateSchedule = async () => {
@@ -122,15 +167,17 @@ export const Dashboard = () => {
     setShowErrorModal(false);
     
     try {
-      console.group('🚀 极限产能收割调度流启动');
+      console.group('🚀 方案 A：时间槽位像素级调度启动');
       setCurrentStep(1);
-      setScheduleStatus('🚀 准备中：清理历史数据并初始化池子...');
+      setScheduleStatus('🚀 像素建模：构建每日资源容量矩阵...');
       await db.allocations.clear();
       let currentAllocations: any[] = [];
+      let totalAllocatedThisSession = 0;
 
-      const applySuggestions = async (suggestions: AIMicroAllocation[], phase: 'dev' | 'test', batch: any[]) => {
+      const applySuggestions = async (suggestions: AIMicroAllocation[], phase: 'dev' | 'test', pool: any[]) => {
+        let count = 0;
         for (const sug of suggestions) {
-          const project = batch.find(p => Number(p.id) === Number(sug.projectId));
+          const project = pool.find(p => Number(p.id) === Number(sug.projectId));
           const resource = resources.find(r => Number(r.id) === Number(sug.resourceId));
           if (!project || !resource) continue;
 
@@ -139,98 +186,100 @@ export const Dashboard = () => {
           const rIdle = cIdle.find(r => Number(r.id) === Number(resource.id));
           if (!pGap || !rIdle) continue;
 
-          const targetGapAmount = phase === 'dev' ? pGap.devGap : pGap.testGap;
-          const finalMd = Math.min(Math.max(1, Math.round(sug.allocatedMd)), targetGapAmount, rIdle.idleMd);
+          const targetGap = phase === 'dev' ? pGap.devGap : pGap.testGap;
+          const finalMd = Math.min(Math.max(1, Math.round(sug.allocatedMd)), targetGap, rIdle.idleMd);
 
           if (finalMd >= 1) {
-            let pStartStr = isValidDateStr(project.startDate) ? project.startDate! : defaultStart;
-            if (phase === 'test') pStartStr = calculateTestStartDate(project.id!, currentAllocations, pStartStr);
-            const startDate = findNextAvailableDate(resource.id!, currentAllocations, pStartStr);
+            const perc = sug.allocationPercentage || 100;
+            let start = isValidDateStr(project.startDate) ? project.startDate! : defaultStart;
+            if (phase === 'test') start = calculateTestStartDate(project.id!, currentAllocations, start);
+            
+            const startDate = findEarliestFitDate(resource.id!, currentAllocations, start, perc);
             if (startDate > scheduleMaxDate) continue;
-            let endDate = calculateEndDate(startDate, finalMd, sug.allocationPercentage || 100);
+            
+            let endDate = calculateEndDate(startDate, finalMd, perc);
             if (endDate > scheduleMaxDate) endDate = scheduleMaxDate;
 
-            const newAlloc = { resourceId: resource.id!, projectId: project.id!, allocationPercentage: sug.allocationPercentage || 100, startDate, endDate, allocationType: phase };
+            const newAlloc = { resourceId: resource.id!, projectId: project.id!, allocationPercentage: perc, startDate, endDate, allocationType: phase };
             currentAllocations.push(newAlloc);
             await db.allocations.add(newAlloc as any);
+            count++;
+            totalAllocatedThisSession += finalMd;
           }
         }
+        return count;
       };
 
-      // PASS 1: Priority Mini-Batches (Strict Mode)
+      // PASS 1: Priority Mini-Batches
       setCurrentStep(2);
       const BATCH_SIZE = 3;
       for (let i = 0; i < readyProjects.length; i += BATCH_SIZE) {
         const batch = readyProjects.slice(i, i + BATCH_SIZE);
-        setScheduleStatus(`🛠️ 阶段一：高优匹配 [${i+1}~${Math.min(i+BATCH_SIZE, readyProjects.length)}]...`);
-        
-        // Dev Pass for batch
+        setScheduleStatus(`🛠️ 阶段一：像素匹配 [${i+1}~${Math.min(i+BATCH_SIZE, readyProjects.length)}]...`);
         const { gaps: dGaps, idle: dIdle } = runAudit(readyProjects, resources, currentAllocations);
-        const batchDev = batch.map(p => ({ ...p, gap: dGaps.find(g => g.id === p.id)?.devGap || 0 })).filter(p => p.gap > 0);
-        if (batchDev.length) {
-          const devIdle = dIdle.filter(r => ['前端工程师', '后端工程师', 'APP工程师', '全栈工程师'].includes(r.role));
-          if (devIdle.length) {
-            const sug = await suggestAllocationsForBatch(batchDev as any, devIdle, 'dev', strategy, false);
-            await applySuggestions(sug, 'dev', batch);
-          }
+        const bDev = batch.map(p => ({ ...p, gap: dGaps.find(g => g.id === p.id)?.devGap || 0 })).filter(p => p.gap > 0);
+        if (bDev.length && dIdle.some(r => ['前端工程师', '后端工程师', 'APP工程师', '全栈工程师'].includes(r.role))) {
+          const sug = await suggestAllocationsForBatch(bDev as any, dIdle.filter(r => ['前端工程师', '后端工程师', 'APP工程师', '全栈工程师'].includes(r.role)), 'dev', strategy, false);
+          await applySuggestions(sug, 'dev', batch);
         }
-
-        // Test Pass for batch
         const { gaps: tGaps, idle: tIdle } = runAudit(readyProjects, resources, currentAllocations);
-        const batchTest = batch.map(p => ({ ...p, gap: tGaps.find(g => g.id === p.id)?.testGap || 0 })).filter(p => p.gap > 0);
-        if (batchTest.length) {
-          const testIdle = tIdle.filter(r => r.role === '测试工程师');
-          if (testIdle.length) {
-            const sug = await suggestAllocationsForBatch(batchTest as any, testIdle, 'test', strategy, false);
-            await applySuggestions(sug, 'test', batch);
-          }
+        const bTest = batch.map(p => ({ ...p, gap: tGaps.find(g => g.id === p.id)?.testGap || 0 })).filter(p => p.gap > 0);
+        if (bTest.length && tIdle.some(r => r.role === '测试工程师')) {
+          const sug = await suggestAllocationsForBatch(bTest as any, tIdle.filter(r => r.role === '测试工程师'), 'test', strategy, false);
+          await applySuggestions(sug, 'test', batch);
         }
       }
 
-      // PASS 2: Integrity Audit & Rollback
-      setScheduleStatus(`🛡️ 阶段二：排期完整性审计与回滚...`);
-      const { gaps: finalGaps } = runAudit(readyProjects, resources, currentAllocations);
+      // PASS 2: Integrity Audit
+      setScheduleStatus(`🛡️ 阶段二：完整性审计回滚...`);
+      let retryQueue: any[] = [];
+      const { gaps: aGaps } = runAudit(readyProjects, resources, currentAllocations);
       for (const project of readyProjects) {
-        const pGap = finalGaps.find(g => Number(g.id) === Number(project.id));
-        if (pGap && project.devTotalMd > 0 && project.testTotalMd > 0) {
-          const devF = pGap.devGap < project.devTotalMd, testF = pGap.testGap < project.testTotalMd;
-          if ((devF && !testF) || (!devF && testF)) {
-            console.log(`[Rollback] ⚠️ 项目 "${project.name}" 脱节，已回滚。`);
+        const g = aGaps.find(pg => Number(pg.id) === Number(project.id));
+        if (g && project.devTotalMd > 0 && project.testTotalMd > 0) {
+          if ((g.devGap < project.devTotalMd && g.testGap === project.testTotalMd) || (g.devGap === project.devTotalMd && g.testGap < project.testTotalMd)) {
             currentAllocations = currentAllocations.filter(a => Number(a.projectId) !== Number(project.id));
             await db.allocations.where('projectId').equals(project.id!).delete();
+            retryQueue.push(project);
           }
         }
       }
-      await new Promise(r => setTimeout(r, 500));
 
-      // PASS 3: Global Harvesting Pass (RELAXED MODE)
+      // PASS 3: Convergence Loops
       setCurrentStep(3);
-      setScheduleStatus(`🌾 阶段三：解除封印，全量收割闲置人力...`);
-      const { gaps: hGaps, idle: hIdle } = runAudit(readyProjects, resources, currentAllocations);
-      if (hGaps.length > 0 && hIdle.length > 0) {
-        // Collect ALL gaps
-        const allDevGaps = hGaps.map(g => ({ ...g, gap: g.devGap })).filter(g => g.gap > 0);
-        const devIdle = hIdle.filter(r => ['前端工程师', '后端工程师', 'APP工程师', '全栈工程师'].includes(r.role));
-        if (allDevGaps.length && devIdle.length) {
-          const sug = await suggestAllocationsForBatch(allDevGaps as any, devIdle, 'dev', strategy, true);
-          await applySuggestions(sug, 'dev', readyProjects);
+      let loop = 1;
+      let progress = true;
+      while (progress && loop <= 3) {
+        setScheduleStatus(`🌾 阶段三：循环收割 (轮次 ${loop}/3)...`);
+        const startMD = totalAllocatedThisSession;
+        const { gaps: hGaps, idle: hIdle } = runAudit(readyProjects, resources, currentAllocations);
+        if (hGaps.length === 0 || hIdle.length === 0) break;
+        const pool = [...retryQueue, ...readyProjects.filter(p => !retryQueue.includes(p))];
+        
+        const devG = hGaps.map(g => ({ ...g, gap: g.devGap })).filter(g => g.gap > 0);
+        const devI = hIdle.filter(r => ['前端工程师', '后端工程师', 'APP工程师', '全栈工程师'].includes(r.role));
+        if (devG.length && devI.length) {
+          const sug = await suggestAllocationsForBatch(devG as any, devI, 'dev', strategy, true);
+          await applySuggestions(sug, 'dev', pool);
         }
 
         const { gaps: hGaps2, idle: hIdle2 } = runAudit(readyProjects, resources, currentAllocations);
-        const allTestGaps = hGaps2.map(g => ({ ...g, gap: g.testGap })).filter(g => g.gap > 0);
-        const testIdle = hIdle2.filter(r => r.role === '测试工程师');
-        if (allTestGaps.length && testIdle.length) {
-          const sug = await suggestAllocationsForBatch(allTestGaps as any, testIdle, 'test', strategy, true);
-          await applySuggestions(sug, 'test', readyProjects);
+        const testG = hGaps2.map(g => ({ ...g, gap: g.testGap })).filter(g => g.gap > 0);
+        const testI = hIdle2.filter(r => r.role === '测试工程师');
+        if (testG.length && testI.length) {
+          const sug = await suggestAllocationsForBatch(testG as any, testI, 'test', strategy, true);
+          await applySuggestions(sug, 'test', pool);
         }
+        progress = totalAllocatedThisSession > startMD;
+        loop++;
       }
 
       setCurrentStep(4);
-      setScheduleStatus('✨ 极限产能收割完成！资源已最大化利用。');
+      setScheduleStatus('✨ 方案 A 像素级调度完成！');
       console.groupEnd();
       setTimeout(() => { setScheduleStatus(''); setCurrentStep(0); }, 5000);
     } catch (err: any) {
-      console.error('[Dashboard] ❌ Scheduling Failed:', err);
+      console.error(err);
       setError(err.message);
       setShowErrorModal(true);
       setCurrentStep(0);
@@ -249,7 +298,7 @@ export const Dashboard = () => {
               {isScheduling && <RefreshCcw size={14} className="animate-spin text-blue-600" />}
               {!isScheduling && currentStep === 4 && <CheckCircle2 size={14} className="text-green-500" />}
               <span className={`text-xs font-bold ${isScheduling ? 'text-blue-600' : currentStep === 4 ? 'text-green-600' : 'text-gray-400'}`}>
-                {scheduleStatus || '三段式收割架构：分批匹配 -> 完整性审计 -> 极限补排'}
+                {scheduleStatus || '像素级统筹架构：矩阵建模 -> 并行分批 -> 循环收割'}
               </span>
             </div>
           </div>
@@ -305,7 +354,7 @@ export const Dashboard = () => {
             }`}
           >
             <Zap size={16} className={isScheduling ? "animate-pulse" : ""} />
-            <span>{isScheduling ? '极限产能收割中...' : '一键 AI 智能排期'}</span>
+            <span>{isScheduling ? '正在进行统筹优化...' : '一键 AI 智能排期'}</span>
           </button>
         </div>
       </div>
@@ -365,7 +414,7 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Main Table with Grouping Toggle */}
+      {/* Main Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-4 border-b border-gray-100 bg-gray-50/30 flex justify-between items-center">
           <h3 className="font-bold text-gray-900 text-sm">已排期任务详情</h3>
@@ -423,7 +472,6 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Exception Panels */}
       <div className="grid grid-cols-2 gap-6 mt-8">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-4 border-b border-orange-100 bg-orange-50/50"><h3 className="font-bold text-orange-900 text-sm flex items-center space-x-2"><AlertTriangle size={16} /><span>待跟进项目 (资源未完全满足)</span></h3></div>
@@ -432,7 +480,7 @@ export const Dashboard = () => {
               <thead><tr className="border-b border-gray-100 text-gray-400 font-black uppercase tracking-tighter bg-gray-50/20"><th className="p-3">项目名称</th><th className="p-3 text-center text-orange-600">开发缺口</th><th className="p-3 text-center text-teal-600">测试缺口</th></tr></thead>
               <tbody>{projectGaps.map(p => (
                 <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                  <td className="p-3"><div className={`font-bold ${p.isUnscheduled ? 'text-red-600' : 'text-gray-900'}`}>{p.name}</div></td>
+                  <td className="p-3 font-bold text-gray-900">{p.name}</td>
                   <td className="p-3 text-center">{p.devGap > 0 ? <span className="font-mono font-bold text-orange-600">{Math.round(p.devGap)}d</span> : <span className="text-gray-200">-</span>}</td>
                   <td className="p-3 text-center">{p.testGap > 0 ? <span className="font-mono font-bold text-teal-600">{Math.round(p.testGap)}d</span> : <span className="text-gray-200">-</span>}</td>
                 </tr>
@@ -458,7 +506,6 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Pending Assessment Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-8">
         <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center space-x-2"><FileWarning size={18} className="text-orange-500" /><h3 className="font-bold text-gray-900 text-sm">待评估项目 (未填写开发/测试工时，不参与排期)</h3></div>
         <div className="p-0">{pendingProjects.length === 0 ? <p className="text-gray-400 text-center py-8 text-xs italic">暂无待评估项目</p> : (
