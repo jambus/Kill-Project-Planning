@@ -117,5 +117,12 @@ Projects to fulfill:
 ${JSON.stringify(projects)}
 Return ONLY a JSON Array.`;
 
-  return await callAI(systemMsg, prompt, settings);
+  console.log(`[AI Debug] 🚀 Sending Request to LLM (${phase.toUpperCase()}, Relaxed: ${isRelaxed})`);
+  console.log(`[AI Debug] Projects:`, projects.map(p => `${p.name} (Gap: ${p.gap}d)`));
+  console.log(`[AI Debug] Resources:`, idleResources.map(r => `${r.name} (${r.role}, Idle: ${r.idleMd}d)`));
+
+  const result = await callAI(systemMsg, prompt, settings);
+  
+  console.log(`[AI Debug] 📥 LLM Response:`, result);
+  return result;
 };

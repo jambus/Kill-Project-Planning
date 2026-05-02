@@ -23,7 +23,7 @@ export const Dashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [groupMode, setGroupMode] = useState<'resource' | 'project'>('resource');
-  const [strategy, setStrategy] = useState<SchedulingStrategy>('focused');
+  const [strategy, setStrategy] = useState<SchedulingStrategy>('balanced');
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -176,18 +176,29 @@ export const Dashboard = () => {
 
       const applySuggestions = async (suggestions: AIMicroAllocation[], phase: 'dev' | 'test', pool: any[]) => {
         let count = 0;
+        console.group(`[Hard Logic] Applying ${suggestions.length} AI suggestions for ${phase.toUpperCase()}`);
+        
         for (const sug of suggestions) {
           const project = pool.find(p => Number(p.id) === Number(sug.projectId));
           const resource = resources.find(r => Number(r.id) === Number(sug.resourceId));
-          if (!project || !resource) continue;
+          if (!project || !resource) {
+             console.warn(`[Logic Error] AI suggested non-existent project/resource: ProjID ${sug.projectId}, ResID ${sug.resourceId}`);
+             continue;
+          }
 
           const { gaps: cGaps, idle: cIdle } = runAudit(readyProjects, resources, currentAllocations);
           const pGap = cGaps.find(g => Number(g.id) === Number(project.id));
           const rIdle = cIdle.find(r => Number(r.id) === Number(resource.id));
-          if (!pGap || !rIdle) continue;
+          
+          if (!pGap || !rIdle) {
+             console.log(`[Skipped] ${resource.name} -> ${project.name}: No remaining gap or idle capacity.`);
+             continue;
+          }
 
           const targetGap = phase === 'dev' ? pGap.devGap : pGap.testGap;
           const finalMd = Math.min(Math.max(1, Math.round(sug.allocatedMd)), targetGap, rIdle.idleMd);
+
+          console.log(`[Analyzing] ${resource.name} -> ${project.name} | AI Suggested: ${sug.allocatedMd}d | Hard Cap: ${finalMd}d (Gap: ${targetGap}d, Idle: ${rIdle.idleMd}d)`);
 
           if (finalMd >= 1) {
             const perc = sug.allocationPercentage || 100;
@@ -195,18 +206,29 @@ export const Dashboard = () => {
             if (phase === 'test') start = calculateTestStartDate(project.id!, currentAllocations, start);
             
             const startDate = findEarliestFitDate(resource.id!, currentAllocations, start, perc);
-            if (startDate > scheduleMaxDate) continue;
+            
+            if (startDate > scheduleMaxDate) {
+               console.log(`[Reject] Start date ${startDate} exceeds boundary ${scheduleMaxDate}`);
+               continue;
+            }
             
             let endDate = calculateEndDate(startDate, finalMd, perc);
-            if (endDate > scheduleMaxDate) endDate = scheduleMaxDate;
+            if (endDate > scheduleMaxDate) {
+               console.log(`[Truncate] End date ${endDate} was cut to ${scheduleMaxDate}`);
+               endDate = scheduleMaxDate;
+            }
 
             const newAlloc = { resourceId: resource.id!, projectId: project.id!, allocationPercentage: perc, startDate, endDate, allocationType: phase };
             currentAllocations.push(newAlloc);
             await db.allocations.add(newAlloc as any);
             count++;
             totalAllocatedThisSession += finalMd;
+            console.log(`[Success] ✅ Assigned ${resource.name} to ${project.name} (${phase}) | ${startDate} to ${endDate} | %: ${perc}`);
+          } else {
+            console.log(`[Reject] Final calculated MD was < 1`);
           }
         }
+        console.groupEnd();
         return count;
       };
 
