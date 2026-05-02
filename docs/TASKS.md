@@ -134,3 +134,50 @@
     - [ ] 10.2.3 第三段：**全量收割补排 (Harvest Pass)**。将所有剩余缺口项目和回滚释放的资源汇总，执行“解除封印”的批量 AI 调用，消除闲置。
 - [ ] **TODO** 10.3 **构建与发布验证**
     - [ ] 10.3.1 执行全流程测试，验证“高优被回滚后，人力是否被低优迅速捡漏”。
+## 阶段十一：资源利用率深度优化 - 时间槽位与循环收敛 (Phase 11: Deep Utilization Optimization)
+
+### P0 - Prompt 贪心策略（零逻辑改动，立即见效）
+
+- [ ] **TODO** 11.1 **Prompt 贪心指令强化 (Greedy Prompt Enhancement)**
+    - [ ] 11.1.1 在 AI 系统消息中注入强制贪心指令：`MUST allocate ALL idleMd`，惩罚留余量行为，要求 AI 尽量将所有闲置资源分配殆尽。
+    - [ ] 11.1.2 Prompt 中传入资源的已排日历摘要（如 `已排: 04-01~04-10 @项目A, 空闲: 04-11~04-30`），让 AI 做出时间感知的决策，避免盲目建议导致 `scheduleMaxDate` 截断。
+    - [ ] 11.1.3 AI 调用时按优先级分梯度传入项目：先传 P0 项目让 AI 分完，再传 P1 项目，避免 AI 在单次调用中"均摊"资源给低优项目。
+
+### P1 - 并行排期修复与循环补排（核心逻辑改造）
+
+- [ ] **TODO** 11.2 **修复 `findNextAvailableDate` 支持并行排期 (Parallel Scheduling Fix)**
+    - [ ] 11.2.1 当 `allocationPercentage < 100` 时，不再等前一个项目结束才开始下一个。改为检查资源当日已用百分比之和，只要 `已用 + 本次 <= 100` 即可从当天开始，实现真正的多项目并行。
+    - [ ] 11.2.2 新增 `getResourceDailyUsage(resourceId, date, currentAllocations)` 工具函数，返回指定资源在指定日期的已占用百分比总和。
+
+- [ ] **TODO** 11.3 **PASS 3 循环补排直到收敛 (Iterative Harvesting Until Convergence)**
+    - [ ] 11.3.1 将当前单次全局补排改为 `while` 循环：每轮调用 AI 后 `applySuggestions`，重新计算 gaps & idle，直到满足退出条件。
+    - [ ] 11.3.2 退出条件：① gaps 为空 ② idle 为空 ③ AI 返回空数组（无法继续优化）④ 达到最大轮次（3 轮）。
+    - [ ] 11.3.3 每轮循环前重新构建项目缺口列表，按优先级排序，确保高优项目残余缺口始终优先被填充。
+
+### P2 - 回滚重排与填充优先级（消除浪费）
+
+- [ ] **TODO** 11.4 **回滚后立即重排机制 (Retry After Rollback)**
+    - [ ] 11.4.1 PASS 2 回滚的项目不直接丢弃，加入 `retryQueue`。
+    - [ ] 11.4.2 在 PASS 3 之前，对 `retryQueue` 中的项目执行一次完整的 dev+test 联合排期（此时资源池已包含回滚释放的余量），优先恢复被回滚的高优项目。
+
+- [ ] **TODO** 11.5 **填充优先级排序 (Gap-Fill Priority Ordering)**
+    - [ ] 11.5.1 PASS 3 全局补排时，项目缺口列表严格按优先级（DB ID 自增序）排序传给 AI。
+    - [ ] 11.5.2 Prompt 中显式标注"第 1 个项目优先级最高，必须优先满足"，避免 AI 均摊。
+
+### P3 - 时间槽位矩阵（架构级优化，接近理论最优）
+
+- [ ] **TODO** 11.6 **引入资源日历槽位矩阵 (Resource Calendar Slot Matrix)**
+    - [ ] 11.6.1 定义 `DailySlot` 数据结构：`{ date, totalCapacity, usedCapacity, available }`，为每个资源在排期窗口内生成完整的每日可用百分比数组。
+    - [ ] 11.6.2 实现 `buildResourceCalendar(resources, allocations, rangeStart, rangeEnd)` 函数，遍历现有分配填充槽位占用。
+
+- [ ] **TODO** 11.7 **基于槽位的智能起止日期计算 (Slot-Aware Date Calculation)**
+    - [ ] 11.7.1 实现 `findAvailableSlotWindow(resourceId, calendar, neededMd, percentage)` 函数：在日历矩阵中寻找连续 N 天 `available >= percentage` 的最早窗口。
+    - [ ] 11.7.2 替换当前 `findNextAvailableDate`，使排期引擎能感知真实的每日空闲分布。
+
+- [ ] **TODO** 11.8 **传递可用时间窗口给 AI (Availability Windows in Prompt)**
+    - [ ] 11.8.1 将资源信息从 `{id, name, idleMd}` 升级为 `{id, name, availableWindows: [{from, to, dailyAvailable}]}`，让 AI 做出时间对齐的精准建议。
+    - [ ] 11.8.2 AI 返回结构增加 `suggestedStartDate` 字段，减少 JS 层的日期推算偏差。
+
+- [ ] **TODO** 11.9 **验证与度量 (Validation & Metrics)**
+    - [ ] 11.9.1 排期完成后，输出全局利用率统计：`总可用人天 / 总已排人天 = 利用率 %`，作为排期质量评分展示在大盘上。
+    - [ ] 11.9.2 执行 `npm run build` 确保所有改动通过编译。
