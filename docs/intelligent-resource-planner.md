@@ -109,34 +109,32 @@ graph TD
 *   **优先级逻辑**：系统严格遵循「从上到下」的物理顺序规则。文件导入时，排在顶部的项目具有最高优先级。
 *   **展示与排期一致性**：无论是「项目管理」页面的列表展示，还是「全局排期大盘」的 AI 自动排期，都统一使用数据库自增 ID 作为顺序基准，确保 UI 显示顺序、业务优先级顺序与 AI 逻辑完全对齐。
 
-#### 3.3.2 优先级小批量排期与完整性回滚 (Priority Mini-Batches & Integrity Rollback)
-为了在「全局分配」和「严格优先级」之间取得最佳平衡，并解决独立排期可能产生的“半拉子工程”问题，系统架构升级为带事务特性的批量排期模型：
+#### 3.3.2 时间槽位矩阵统筹与收敛循环 (Time Slot Matrix & Convergence Loops)
+系统已进化至统筹大师级调度架构，通过「像素级」建模和「贪心循环」实现资源利用率的极致挖掘：
 
 ```mermaid
 graph TD
-    Start([点击一键排期]) --> Init[重置 Allocations 表<br/>建立资源池与需求池]
-    Init --> LoopStart{按物理顺序切分为 3个/组 的小批次}
-    
-    LoopStart --> CheckEnd{所有批次已处理完毕?}
-    CheckEnd -- 是 --> AuditPhase[<b>完整性审计 (Integrity Audit)</b><br/>扫描是否存在只有 Dev 没有 Test 的半拉子项目]
-    
-    AuditPhase --> HasRollback{是否存在脱节项目?}
-    HasRollback -- 是 --> Rollback[触发整体回滚: 撤销该项目所有分配, 退回人天] --> End([完成排期])
-    HasRollback -- 否 --> End
-    
-    CheckEnd -- 否 --> BatchAI[<b>小批量微调度 (Mini-Batch Matching)</b><br/>应用 Prompt Caching 分阶段发送 Dev 和 Test 请求]
-    
-    BatchAI --> HardDeduction[<b>JS 强制截断与扣减</b><br/>遍历返回结果，实际分配人天 = Math.min(AI建议, 缺口, 资源余量)]
-    HardDeduction --> CalculateDates[基于项目与人员情况计算真实起止日期]
-    CalculateDates --> Save[持久化至 IndexedDB 并触发 UI 更新]
-    
+    Start([点击一键排期]) --> Init[重置 Allocations 表<br/>建立 DailySlot 每日容量矩阵]
+    Init --> Pass1[<b>PASS 1: 优先级小分批匹配</b><br/>按优先级 3个/组 执行对口分配]
+
+    Pass1 --> Audit[<b>PASS 2: 完整性审计</b><br/>回滚半拉子工程, 释放资源至 RetryQueue]
+
+    Audit --> LoopStart{进入 PASS 3: 循环收割<br/>轮次 < 3 且有资源剩余?}
+
+    LoopStart -- 否 --> End([完成排期])
+
+    LoopStart -- 是 --> BatchAI[<b>AI 窗口化调度 (Windowed Matching)</b><br/>传给 AI 精确的 Free Slots 阵列<br/>强制执行贪心指令 (Max Utilization)]
+
+    BatchAI --> HardDeduction[<b>JS 像素级扣减</b><br/>在矩阵中寻找第一个 Fit 日期槽位]
+    HardDeduction --> Save[持久化至 IndexedDB 并更新矩阵]
+
     Save --> LoopStart
 ```
 
-1.  **优先级微批次 (Priority Mini-Batches)**：为了防止低优小项目抢占高优大项目的资源，系统摒弃了绝对的一把梭，而是按照 CSV 导入顺序，严格将项目每 3 个划分为一组小批次。在高优批次闭环完成 Dev 和 Test 调度之后，系统才会向下一个低优批次释放剩余资源。
-2.  **Prompt Caching 优化**：将静态的排班标准规则、人员画像与可用闲置天数等置于 `System Prompt` 中，利用大语言模型（如 Claude/OpenAI）内置的缓存机制，后续同批次请求的重复输入无需再次支付 Token 费用，成本节省达 90% 以上。
-3.  **强制截断执行器 (Hard Deduction)**：JS 代码在接收 AI 建议后绝不盲目信任，强制执行 `Math.min(建议人天, 项目缺口, 资源余量)`，从而 **100% 杜绝超排**，并将排期过程的透明度发挥到极致。
-4.  **排期完整性回滚 (All-or-Nothing Rollback)**：在所有批次处理完毕后进行全局清算。如果某个项目需要研发和测试双向资源，但 AI 最终只分配了其中一方（例如只排了开发，测试全员没空），系统将触发「事务级回滚」，强行撤销该项目已骗取的所有资源并重置回待排缺口，杜绝半拉子工程占用宝贵产能。
+1.  **DailySlot 每日容量建模**：系统为每位员工在排期窗口内建立完整的日历矩阵。每一天都是一个独立的调度单元，精确记录 `usedCapacity`。这使得系统能够感知“并行的缝隙”，支持 50%+50% 的真正并发。
+2.  **AI 窗口化感知 (Windowed Awareness)**：传给 AI 的不再是模糊的 `idleMd` 总量，而是基于矩阵生成的精确 `Available Windows` 列表。AI 因此获得了时间维度的“像素级视角”，极大减少了盲目分配导致的边界冲突。
+3.  **收敛收割循环 (Convergence Loops)**：最后的收割阶段不再是一次性尝试。系统会自动执行最多 3 轮的贪心补排，每一轮都会拿着上一轮释放的碎余资源重新寻找缺口，直到分配结果达到数学意义上的收敛。
+4.  **排期完整性回滚 (All-or-Nothing Rollback)**：在核心批次处理后，系统强制执行事务检查。若项目无法在当期内完成“研发+测试”的闭环，则果断释放占位资源，让位给能闭环的项目。
 
 #### 3.3.3 排期精准度与策略优化 (Scheduling Precision & Strategies)
 为提升 AI 分配的合理性与资源利用率，系统在底层引入了多项高级调度特性：
