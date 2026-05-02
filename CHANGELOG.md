@@ -3,7 +3,10 @@
 ## [1.0.1] - 2026-04-30
 
 ### 新特性 (New Features)
-- **AI 批量全局排期与 Prompt Caching (Global Batch Scheduling)**：重构了底层的 AI 排期引擎，由“逐个项目循环调用”升级为“收集全盘空缺进行单次批量调用”。此举赋予了大模型全局视野，彻底解决了“先到先得”的局部次优解问题，并依托 Prompt Caching 机制节省了 90% 以上的 API Token 消耗。
+- **AI 优先级微批次排期与完整性回滚 (Priority Mini-Batches & Integrity Rollback)**：
+  - 弃用容易产生“先到先得”次优解的一把梭分配。现在系统严格按照 CSV 导入的高低优先级，将项目划分为“小批次”发送给大模型处理。
+  - **排期完整性审计 (Integrity Audit)**：在所有批次排期完成后，系统会执行事务级检查，自动剥离并回滚只排上开发没排上测试的“半拉子工程”，将闲置资源退回。
+- **AI 批量全局排期与 Prompt Caching (Global Batch Scheduling)**：通过合并单次调用的上下文并依托大模型的 Prompt Caching 机制，为批量分配节省了 90% 以上的 API Token 消耗。
 - **多阶段迭代排期架构 (Two-Phase Scheduling)**：将排期阶段分离为 Dev-first 和 Test-second，优先安排开发任务。
 - **测试前置依赖双重约束**：动态计算项目所有开发任务的起止时间中点作为测试最早开始时间，同时在 AI Prompt 中加入强制校验规则（确保测试不可早于开发），防止测试人员被盲目锁定。
 - **AI 排期准则完全可配置 (Editable AI Prompt)**：在“系统设置”页面提供了一个可编辑的多行文本框，暴露了 AI 排期引擎的核心调度 Prompt。允许高级用户直接向大模型追加自定义的排期准则与限制，并提供了一键恢复系统默认规则的按钮。

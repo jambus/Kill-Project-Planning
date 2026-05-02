@@ -109,30 +109,34 @@ graph TD
 *   **优先级逻辑**：系统严格遵循「从上到下」的物理顺序规则。文件导入时，排在顶部的项目具有最高优先级。
 *   **展示与排期一致性**：无论是「项目管理」页面的列表展示，还是「全局排期大盘」的 AI 自动排期，都统一使用数据库自增 ID 作为顺序基准，确保 UI 显示顺序、业务优先级顺序与 AI 逻辑完全对齐。
 
-#### 3.3.2 全局批量排期架构与 Prompt Caching (Global Batch Scheduling & Prompt Caching)
-为了解决 AI 逐个处理产生的「Token 浪费严重」以及「上下文割裂导致的次优解」问题，系统现已全面升级为全局批量调度架构，并深度整合了大模型的 Prompt Caching 机制：
+#### 3.3.2 优先级小批量排期与完整性回滚 (Priority Mini-Batches & Integrity Rollback)
+为了在「全局分配」和「严格优先级」之间取得最佳平衡，并解决独立排期可能产生的“半拉子工程”问题，系统架构升级为带事务特性的批量排期模型：
 
 ```mermaid
 graph TD
     Start([点击一键排期]) --> Init[重置 Allocations 表<br/>建立资源池与需求池]
-    Init --> Collect[收集当前阶段所有缺口项目<br/>与空闲资源]
-    Collect --> Check{资源是否耗尽<br/>或越过物理边界?}
+    Init --> LoopStart{按物理顺序切分为 3个/组 的小批次}
     
-    Check -- 是 --> End([完成本阶段排期])
+    LoopStart --> CheckEnd{所有批次已处理完毕?}
+    CheckEnd -- 是 --> AuditPhase[<b>完整性审计 (Integrity Audit)</b><br/>扫描是否存在只有 Dev 没有 Test 的半拉子项目]
     
-    Check -- 否 --> BatchAI[<b>AI 批量调度 (Batch Micro-Matching)</b><br/>应用 Prompt Caching 降低 Token 损耗<br/>AI 返回多项目的分配 JSON 阵列]
+    AuditPhase --> HasRollback{是否存在脱节项目?}
+    HasRollback -- 是 --> Rollback[触发整体回滚: 撤销该项目所有分配, 退回人天] --> End([完成排期])
+    HasRollback -- 否 --> End
     
-    BatchAI --> HardDeduction[<b>JS 强制截断与扣减</b><br/>遍历返回结果，实际分配人天 = Math.min(AI建议, 项目缺口, 人员余量)]
+    CheckEnd -- 否 --> BatchAI[<b>小批量微调度 (Mini-Batch Matching)</b><br/>应用 Prompt Caching 分阶段发送 Dev 和 Test 请求]
+    
+    BatchAI --> HardDeduction[<b>JS 强制截断与扣减</b><br/>遍历返回结果，实际分配人天 = Math.min(AI建议, 缺口, 资源余量)]
     HardDeduction --> CalculateDates[基于项目与人员情况计算真实起止日期]
     CalculateDates --> Save[持久化至 IndexedDB 并触发 UI 更新]
     
-    Save --> End
+    Save --> LoopStart
 ```
 
-1.  **资源池与需求池 (State Management)**：在前端实时维护各资源的空闲时间（Idle MD）和各项目的剩余缺口（Gaps）。
-2.  **全局批量调度 (Batch Micro-Matching)**：废弃“逐个项目发送请求”的低效模式。系统收集当前排期阶段（Dev/Test）内所有的待排缺口项目，将其作为 JSON 阵列一次性发送给 AI。AI 因此获得了完整的全局视野，避免了“先到先得”的局部次优解。
-3.  **Prompt Caching 优化**：将静态的排班标准规则、人员画像与可用闲置天数等置于 `System Prompt` 中，利用大语言模型（如 Claude/OpenAI）内置的缓存机制，后续同批次请求的重复输入无需再次支付 Token 费用，成本节省达 90% 以上。
-4.  **强制截断执行器 (Hard Deduction)**：JS 代码在接收 AI 建议后绝不盲目信任，强制执行 `Math.min(建议人天, 项目缺口, 资源余量)`，从而 **100% 杜绝超排**，并将排期过程的透明度发挥到极致。
+1.  **优先级微批次 (Priority Mini-Batches)**：为了防止低优小项目抢占高优大项目的资源，系统摒弃了绝对的一把梭，而是按照 CSV 导入顺序，严格将项目每 3 个划分为一组小批次。在高优批次闭环完成 Dev 和 Test 调度之后，系统才会向下一个低优批次释放剩余资源。
+2.  **Prompt Caching 优化**：将静态的排班标准规则、人员画像与可用闲置天数等置于 `System Prompt` 中，利用大语言模型（如 Claude/OpenAI）内置的缓存机制，后续同批次请求的重复输入无需再次支付 Token 费用，成本节省达 90% 以上。
+3.  **强制截断执行器 (Hard Deduction)**：JS 代码在接收 AI 建议后绝不盲目信任，强制执行 `Math.min(建议人天, 项目缺口, 资源余量)`，从而 **100% 杜绝超排**，并将排期过程的透明度发挥到极致。
+4.  **排期完整性回滚 (All-or-Nothing Rollback)**：在所有批次处理完毕后进行全局清算。如果某个项目需要研发和测试双向资源，但 AI 最终只分配了其中一方（例如只排了开发，测试全员没空），系统将触发「事务级回滚」，强行撤销该项目已骗取的所有资源并重置回待排缺口，杜绝半拉子工程占用宝贵产能。
 
 #### 3.3.3 排期精准度与策略优化 (Scheduling Precision & Strategies)
 为提升 AI 分配的合理性与资源利用率，系统在底层引入了多项高级调度特性：
@@ -146,7 +150,7 @@ graph TD
 4. **严格排期窗口约束与防死循环 (Strict Scheduling Window & Early Exit)**：用户的排期时间选择区间（如 4月至6月）即为绝对物理边界。
    * 系统的实际推算如果越过该窗口的最后一天（如 6月30日），则会触发「硬截断」甚至直接放弃分配，退回为项目缺口。
    * **Token 防浪费优化**：当某个角色的排期时间已超出 6月份边界后，系统会自动将其从候选池中移除；如果大盘中所有对应资源均已耗尽或越界，排班系统会直接熔断并停止向 AI 引擎发送后续低优先级项目的空请求，从而避免 Token 浪费与死循环。
-5. **测试前置依赖推算 (Test Dependency)**：在 Prompt 层与代码层双重约束，确保同一个项目的测试任务逻辑上绝对不会早于开发任务。系统会动态计算项目所有开发任务起止时间的「中点 (Midpoint)」作为测试最早开始时间。
+5. **测试前置依赖推算 (Test Dependency)**：在 Prompt 层与代码层双重约束，确保同一个项目的测试任务逻辑上绝对不会早于开发任务。系统会动态识别项目开发任务的「最早开始时间」作为测试的最早准入日期，支持测试与开发同步并行，最大化资源利用率。
 
 #### 3.3.4 月度资源投入计算 (Monthly Allocated MD Calculation)
 *   **基准年份**：系统当前以 **2026 年** 为基准年份进行所有排期和计算。
