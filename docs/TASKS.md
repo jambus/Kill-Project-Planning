@@ -205,3 +205,8 @@
     ## 阶段十五：UI 概览增强 (Phase 15: UI Summary Enhancements)
 
     - [x] **DONE** 15.1 **已排项目汇总看板**：在排期大盘新增“已排项目”区块，展示开发/测试均已到位的项目及其负责人与参与人。
+
+    ## 阶段十六：人员管理功能增强 (Phase 16: Resource Management Enhancements)
+
+    - [x] **DONE** 16.1 **人员批量导入**：支持通过上传 CSV/Excel 文件批量录入团队成员。
+    - [x] **DONE** 16.2 **导入模板下载**：在人员管理页面提供标准 CSV 模板下载。

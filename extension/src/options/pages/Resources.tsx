@@ -1,13 +1,18 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import { Trash2, Edit2, UserPlus, Save, X, Users } from 'lucide-react';
+import { Trash2, Edit2, UserPlus, Save, X, Users, Upload, FileDown, CheckCircle2 } from 'lucide-react';
 import { addResource, deleteResource, updateResource } from '../../db/services';
+import { importResourcesFromFile } from '../../services/fileImport';
 
 export const Resources = () => {
   const resources = useLiveQuery(() => db.resources.toArray());
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importSuccess, setImportImportSuccess] = useState(false);
   
   const [formData, setFormData] = useState({ 
     name: '', 
@@ -65,6 +70,32 @@ export const Resources = () => {
     }
   };
 
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const count = await importResourcesFromFile(file);
+      setImportImportSuccess(true);
+      setTimeout(() => setImportImportSuccess(false), 3000);
+      console.log(`Successfully imported ${count} resources.`);
+    } catch (err) {
+      console.error('Import failed:', err);
+      alert('导入失败，请检查文件格式是否符合模板。');
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const downloadTemplate = () => {
+    const link = document.createElement('a');
+    link.href = '/sample_resources.csv';
+    link.download = 'sample_resources.csv';
+    link.click();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -72,13 +103,46 @@ export const Resources = () => {
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">团队人员管理</h2>
           <p className="text-gray-500 mt-1">维护团队角色与技能图谱，支持实时数据修正</p>
         </div>
-        <button 
-          onClick={handleOpenAdd}
-          className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-blue-100 text-sm font-bold transition-all transform hover:-translate-y-0.5 active:scale-95"
-        >
-          <UserPlus size={18} />
-          <span>添加新成员</span>
-        </button>
+        
+        <div className="flex items-center space-x-3">
+          <input 
+            type="file" 
+            ref={fileInputRef}
+            onChange={handleImport}
+            className="hidden" 
+            accept=".csv,.xlsx"
+          />
+          
+          <button 
+            onClick={downloadTemplate}
+            className="flex items-center space-x-2 bg-white hover:bg-gray-50 text-gray-600 px-4 py-2.5 rounded-xl border border-gray-200 shadow-sm text-xs font-bold transition-all"
+            title="下载导入模板"
+          >
+            <FileDown size={16} />
+            <span>模板下载</span>
+          </button>
+
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+            className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+              importSuccess 
+                ? 'bg-green-50 border-green-200 text-green-600' 
+                : 'bg-white hover:bg-gray-50 text-blue-600 border-blue-200 shadow-sm'
+            }`}
+          >
+            {importSuccess ? <CheckCircle2 size={16} /> : <Upload size={16} />}
+            <span>{isImporting ? '导入中...' : importSuccess ? '导入成功' : '批量导入'}</span>
+          </button>
+
+          <button 
+            onClick={handleOpenAdd}
+            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-blue-100 text-sm font-bold transition-all transform hover:-translate-y-0.5 active:scale-95 ml-2"
+          >
+            <UserPlus size={18} />
+            <span>添加新成员</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">

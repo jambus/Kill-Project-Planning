@@ -1,0 +1,6 @@
+Name,Role,Capacity %,Skills
+"Liang","全栈工程师",100,"React, Node.js, TypeScript, Python, Azure"
+"Big Checker","测试工程师",100,"Manual Testing, Automation, Cypress, Selenium"
+"Alex Wong","后端工程师",80,"Java, Spring Boot, MySQL, Redis"
+"Sarah Lee","前端工程师",100,"Vue, Tailwind CSS, JavaScript"
+"Tom Chen","APP工程师",50,"Flutter, Dart, iOS, Android"

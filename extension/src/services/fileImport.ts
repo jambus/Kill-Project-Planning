@@ -86,3 +86,51 @@ export const importProjectsFromFile = async (file: File): Promise<number> => {
     reader.readAsArrayBuffer(file);
   });
 };
+
+export const importResourcesFromFile = async (file: File): Promise<number> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        if (rows.length < 2) {
+          throw new Error('文件中没有数据行');
+        }
+
+        const headers = rows[0].map(h => (h || '').toString());
+        
+        const idxName = findColumnIndex(headers, ['name', '姓名', '成员']);
+        const idxRole = findColumnIndex(headers, ['role', '角色', '专业角色', '职位']);
+        const idxCapacity = findColumnIndex(headers, ['capacity', '负荷', '可用负荷', '投入比']);
+        const idxSkills = findColumnIndex(headers, ['skills', '技能', '标签', '核心技能']);
+
+        const resourcesToInsert = rows.slice(1).map(row => {
+          const rawSkills = idxSkills !== -1 ? row[idxSkills]?.toString() || '' : '';
+          return {
+            name: idxName !== -1 ? row[idxName]?.toString() || 'Unknown' : 'Unknown',
+            role: idxRole !== -1 ? row[idxRole]?.toString() || '前端工程师' : '前端工程师',
+            capacity: idxCapacity !== -1 ? Number(row[idxCapacity].toString().replace('%', '')) || 100 : 100,
+            skills: rawSkills.split(/[,,，，]/).map((s: string) => s.trim()).filter(Boolean)
+          };
+        }).filter(r => r.name !== 'Unknown');
+
+        await db.resources.clear();
+        if (resourcesToInsert.length > 0) {
+          await db.resources.bulkAdd(resourcesToInsert);
+        }
+        
+        resolve(resourcesToInsert.length);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = (error) => reject(error);
+    reader.readAsArrayBuffer(file);
+  });
+};
