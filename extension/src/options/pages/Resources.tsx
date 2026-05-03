@@ -1,32 +1,42 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import { Trash2, Edit2, UserPlus, Save, X, Users } from 'lucide-react';
+import { Trash2, Edit2, UserPlus, Save, X, Users, Upload, FileDown, CheckCircle2, Download } from 'lucide-react';
 import { addResource, deleteResource, updateResource } from '../../db/services';
+import { importResourcesFromFile } from '../../services/fileImport';
 
 export const Resources = () => {
   const resources = useLiveQuery(() => db.resources.toArray());
+  const allSkills = useLiveQuery(() => db.skills.toArray());
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importSuccess, setImportImportSuccess] = useState(false);
   
-  const [formData, setFormData] = useState({ 
+  const [formData, setFormData] = useState<{
+    name: string;
+    role: string;
+    capacity: number;
+    skills: string[];
+  }>({ 
     name: '', 
     role: '前端工程师', 
     capacity: 100, 
-    skills: '' 
+    skills: [] 
   });
 
   const roles = [
     '前端工程师',
     '后端工程师',
     '全栈工程师',
-    'APP工程师',
     '测试工程师'
   ];
 
   const handleOpenAdd = () => {
     setEditingId(null);
-    setFormData({ name: '', role: '前端工程师', capacity: 100, skills: '' });
+    setFormData({ name: '', role: '前端工程师', capacity: 100, skills: [] });
     setShowModal(true);
   };
 
@@ -36,9 +46,20 @@ export const Resources = () => {
       name: r.name, 
       role: r.role, 
       capacity: r.capacity, 
-      skills: r.skills.join(', ') 
+      skills: r.skills || [] 
     });
     setShowModal(true);
+  };
+
+  const toggleSkill = (skillName: string) => {
+    setFormData(prev => {
+      const current = prev.skills || [];
+      if (current.includes(skillName)) {
+        return { ...prev, skills: current.filter(s => s !== skillName) };
+      } else {
+        return { ...prev, skills: [...current, skillName] };
+      }
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,7 +68,7 @@ export const Resources = () => {
       name: formData.name,
       role: formData.role,
       capacity: Number(formData.capacity),
-      skills: formData.skills.split(',').map(s => s.trim()).filter(Boolean)
+      skills: formData.skills
     };
 
     if (editingId) {
@@ -65,6 +86,53 @@ export const Resources = () => {
     }
   };
 
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const count = await importResourcesFromFile(file);
+      setImportImportSuccess(true);
+      setTimeout(() => setImportImportSuccess(false), 3000);
+      console.log(`Successfully imported ${count} resources.`);
+    } catch (err) {
+      console.error('Import failed:', err);
+      alert('导入失败，请检查文件格式是否符合模板。');
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const downloadTemplate = () => {
+    const link = document.createElement('a');
+    link.href = '/sample_resources.csv';
+    link.download = 'sample_resources.csv';
+    link.click();
+  };
+
+  const exportToCSV = () => {
+    if (!resources || resources.length === 0) return;
+    
+    const headers = ['Name', 'Role', 'Capacity %', 'Skills'];
+    const csvContent = [
+      headers.join(','),
+      ...resources.map(r => [
+        `"${r.name}"`,
+        `"${r.role}"`,
+        r.capacity,
+        `"${r.skills.join(', ')}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `resources_export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -72,13 +140,56 @@ export const Resources = () => {
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">团队人员管理</h2>
           <p className="text-gray-500 mt-1">维护团队角色与技能图谱，支持实时数据修正</p>
         </div>
-        <button 
-          onClick={handleOpenAdd}
-          className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-blue-100 text-sm font-bold transition-all transform hover:-translate-y-0.5 active:scale-95"
-        >
-          <UserPlus size={18} />
-          <span>添加新成员</span>
-        </button>
+        
+        <div className="flex items-center space-x-3">
+          <input 
+            type="file" 
+            ref={fileInputRef}
+            onChange={handleImport}
+            className="hidden" 
+            accept=".csv,.xlsx"
+          />
+          
+          <button 
+            onClick={downloadTemplate}
+            className="flex items-center space-x-2 bg-white hover:bg-gray-50 text-gray-600 px-4 py-2.5 rounded-xl border border-gray-200 shadow-sm text-xs font-bold transition-all"
+            title="下载导入模板"
+          >
+            <FileDown size={16} />
+            <span>模板下载</span>
+          </button>
+
+          <button 
+            onClick={exportToCSV}
+            disabled={!resources || resources.length === 0}
+            className="flex items-center space-x-2 bg-white hover:bg-gray-50 text-gray-600 px-4 py-2.5 rounded-xl border border-gray-200 shadow-sm text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            title="下载当前人员列表为 CSV"
+          >
+            <Download size={16} />
+            <span>人员导出</span>
+          </button>
+
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+            className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+              importSuccess 
+                ? 'bg-green-50 border-green-200 text-green-600' 
+                : 'bg-white hover:bg-gray-50 text-blue-600 border-blue-200 shadow-sm'
+            }`}
+          >
+            {importSuccess ? <CheckCircle2 size={16} /> : <Upload size={16} />}
+            <span>{isImporting ? '导入中...' : importSuccess ? '导入成功' : '批量导入'}</span>
+          </button>
+
+          <button 
+            onClick={handleOpenAdd}
+            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-blue-100 text-sm font-bold transition-all transform hover:-translate-y-0.5 active:scale-95 ml-2"
+          >
+            <UserPlus size={18} />
+            <span>添加新成员</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
@@ -219,14 +330,53 @@ export const Resources = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">核心技能 (逗号分隔)</label>
-                <textarea 
-                  placeholder="React, Vue, Node.js..." 
-                  rows={3}
-                  value={formData.skills} 
-                  onChange={e => setFormData({...formData, skills: e.target.value})} 
-                  className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-medium resize-none" 
-                />
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">核心能力标签</label>
+                <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                  {/* Business Skills */}
+                  <div>
+                    <span className="text-[9px] font-bold text-orange-400 uppercase tracking-tighter mb-2 block">业务领域</span>
+                    <div className="flex flex-wrap gap-2">
+                      {allSkills?.filter(s => s.type === 'business').map(skill => (
+                        <button
+                          key={skill.id}
+                          type="button"
+                          onClick={() => toggleSkill(skill.name)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                            formData.skills.includes(skill.name)
+                              ? 'bg-orange-500 text-white border-orange-500 shadow-sm shadow-orange-100'
+                              : 'bg-white text-gray-500 border-gray-200 hover:border-orange-200'
+                          }`}
+                        >
+                          {skill.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Technical Skills */}
+                  <div>
+                    <span className="text-[9px] font-bold text-blue-400 uppercase tracking-tighter mb-2 block">技术能力</span>
+                    <div className="flex flex-wrap gap-2">
+                      {allSkills?.filter(s => s.type === 'technical').map(skill => (
+                        <button
+                          key={skill.id}
+                          type="button"
+                          onClick={() => toggleSkill(skill.name)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                            formData.skills.includes(skill.name)
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-100'
+                              : 'bg-white text-gray-500 border-gray-200 hover:border-blue-200'
+                          }`}
+                        >
+                          {skill.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {allSkills?.length === 0 && (
+                  <p className="text-[10px] text-gray-400 italic mt-2">请先前往“技能管理”页面维护标签</p>
+                )}
               </div>
 
               <div className="pt-4 flex space-x-3">

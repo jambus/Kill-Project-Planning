@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Settings, FolderKanban, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, FolderKanban, CalendarDays, Tags } from 'lucide-react';
 
 export const Layout = () => {
   const location = useLocation();
@@ -8,6 +8,7 @@ export const Layout = () => {
     { name: '仪表盘', path: '/', icon: <LayoutDashboard size={20} /> },
     { name: '项目管理', path: '/projects', icon: <FolderKanban size={20} /> },
     { name: '人员管理', path: '/resources', icon: <Users size={20} /> },
+    { name: '技能管理', path: '/skills', icon: <Tags size={20} /> },
     { name: '节假日管理', path: '/holidays', icon: <CalendarDays size={20} /> },
     { name: '系统设置', path: '/settings', icon: <Settings size={20} /> },
   ];
@@ -42,6 +43,16 @@ export const Layout = () => {
             );
           })}
         </nav>
+
+        {/* Sidebar Footer / Version */}
+        <div className="p-4 border-t border-gray-100">
+          <div className="flex items-center justify-between px-2">
+            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Version</span>
+            <span className="text-[10px] font-bold text-blue-400 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+              v1.0.2
+            </span>
+          </div>
+        </div>
       </aside>
 
       {/* Main Content */}
