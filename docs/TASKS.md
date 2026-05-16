@@ -233,63 +233,63 @@
 
 ### P0 — 立即执行（性能，直接影响使用体验）
 
-- [ ] **20.1 [PERF-01] 增量矩阵更新，消除 `applySuggestions` 内循环全量 `runAudit`**
-    - [ ] 20.1.1 将 `DailySlot` 矩阵以 `Map<resourceId, DailySlot[]>` 形式在调度会话内存中共享维护。
-    - [ ] 20.1.2 `applySuggestions` 应用每条建议后，仅对受影响资源做增量 slot 更新，不再触发全量 `runAudit`。
-    - [ ] 20.1.3 `runAudit` 在 PASS 间汇总审计时仍可调用，但频率从「每条建议」降为「每个 PASS 结束时」。
-    - [ ] 20.1.4 执行 `npm run build` 验证通过，排期结果与优化前行为一致。
+- [x] **DONE** **20.1 [PERF-01] 增量矩阵更新，消除 `applySuggestions` 内循环全量 `runAudit`**
+    - [x] 20.1.1 将 `DailySlot` 矩阵以 `Map<resourceId, DailySlot[]>` 形式在调度会话内存中共享维护。
+    - [x] 20.1.2 `applySuggestions` 应用每条建议后，仅对受影响资源做增量 slot 更新，不再触发全量 `runAudit`。
+    - [x] 20.1.3 `runAudit` 在 PASS 间汇总审计时仍可调用，但频率从「每条建议」降为「每个 PASS 结束时」。
+    - [x] 20.1.4 执行 `npm run build` 验证通过，排期结果与优化前行为一致。
 
-- [ ] **20.2 [PERF-02] `HOLIDAYS` / `SPECIAL_WORKDAYS` 改为 `Set<string>` O(1) 查找**
-    - [ ] 20.2.1 在 `dateUtils.ts` 模块初始化时，将 `HOLIDAYS` 和 `SPECIAL_WORKDAYS` 数组转为 `Set<string>`。
-    - [ ] 20.2.2 `isWorkingDay` 中的 `.includes()` 调用改为 `.has()`。
-    - [ ] 20.2.3 `updateHolidaysConfig` 函数同步维护 Set 引用。
-    - [ ] 20.2.4 执行 `npm run build` 验证通过。
+- [x] **DONE** **20.2 [PERF-02] `HOLIDAYS` / `SPECIAL_WORKDAYS` 改为 `Set<string>` O(1) 查找**
+    - [x] 20.2.1 在 `dateUtils.ts` 模块初始化时，将 `HOLIDAYS` 和 `SPECIAL_WORKDAYS` 数组转为 `Set<string>`。
+    - [x] 20.2.2 `isWorkingDay` 中的 `.includes()` 调用改为 `.has()`。
+    - [x] 20.2.3 `updateHolidaysConfig` 函数同步维护 Set 引用。
+    - [x] 20.2.4 执行 `npm run build` 验证通过。
 
 ### P1 — 近期执行（准确性 & 中等性能）
 
-- [ ] **20.3 [PERF-03] 消除 `generateResourceCalendar` 重复构建**
-    - [ ] 20.3.1 将 calendar 矩阵作为调度会话共享状态（与 PERF-01 的 Map 合并），`findEarliestFitDate` 直接复用已有矩阵，不再独立构建。
-    - [ ] 20.3.2 执行 `npm run build` 验证通过。
+- [x] **DONE** **20.3 [PERF-03] 消除 `generateResourceCalendar` 重复构建**
+    - [x] 20.3.1 将 calendar 矩阵作为调度会话共享状态（与 PERF-01 的 Map 合并），`findEarliestFitDate` 直接复用已有矩阵，不再独立构建。
+    - [x] 20.3.2 执行 `npm run build` 验证通过。
 
-- [ ] **20.4 [ACCURACY-01] 修正测试准入日期为开发跨度中点（对齐 PRD § 3.3.3）**
-    - [ ] 20.4.1 修改 `calculateTestStartDate`：遍历所有 dev 分配，取 `earliest_start` 和 `latest_end`。
-    - [ ] 20.4.2 计算中点日期 `midpoint = earliest_start + (latest_end - earliest_start) / 2`，向前取最近工作日。
-    - [ ] 20.4.3 以中点日期作为测试最早准入，替代当前的「最早开发开始日期」逻辑。
-    - [ ] 20.4.4 执行 `npm run build` 验证，测试分配 `startDate` >= dev 时间跨度中点。
+- [x] **DONE** **20.4 [ACCURACY-01] 修正测试准入日期为开发跨度中点（对齐 PRD § 3.3.3）**
+    - [x] 20.4.1 修改 `calculateTestStartDate`：遍历所有 dev 分配，取 `earliest_start` 和 `latest_end`。
+    - [x] 20.4.2 计算中点日期 `midpoint = earliest_start + (latest_end - earliest_start) / 2`，向前取最近工作日。
+    - [x] 20.4.3 以中点日期作为测试最早准入，替代当前的「最早开发开始日期」逻辑。
+    - [x] 20.4.4 执行 `npm run build` 验证，测试分配 `startDate` >= dev 时间跨度中点。
 
-- [ ] **20.5 [ROBUST-01] AI 返回结果增加 Schema 验证与过滤**
-    - [ ] 20.5.1 在 `services/ai.ts` 的 `extractJsonArray` 返回前，过滤不合法条目。
-    - [ ] 20.5.2 合法范围：`projectId > 0`、`resourceId > 0`、`allocatedMd >= 1`、`allocationPercentage ∈ [1, 200]`。
-    - [ ] 20.5.3 非法条目以 `console.warn('[AI Schema] invalid entry:', entry)` 输出。
-    - [ ] 20.5.4 执行 `npm run build` 验证通过。
+- [x] **DONE** **20.5 [ROBUST-01] AI 返回结果增加 Schema 验证与过滤**
+    - [x] 20.5.1 在 `services/ai.ts` 的 `extractJsonArray` 返回前，过滤不合法条目。
+    - [x] 20.5.2 合法范围：`projectId > 0`、`resourceId > 0`、`allocatedMd >= 1`、`allocationPercentage ∈ [1, 200]`。
+    - [x] 20.5.3 非法条目以 `console.warn('[AI Schema] invalid entry:', entry)` 输出。
+    - [x] 20.5.4 执行 `npm run build` 验证通过。
 
 ### P2 — 计划执行（健壮性 & 边界准确性）
 
-- [ ] **20.6 [ROBUST-02] 用 `AbortController` 实现 fetch 即时中断**
-    - [ ] 20.6.1 在 `SchedulingContext` 中增加 `abortControllerRef`，每次排期开始时创建新实例。
-    - [ ] 20.6.2 `callAI` 函数签名增加 `signal?: AbortSignal` 参数，传入 `fetch` 的第二个参数。
-    - [ ] 20.6.3 `stopScheduling` 在设置 `stopRequestedRef` 同时调用 `abortControllerRef.current?.abort()`。
-    - [ ] 20.6.4 处理 `AbortError`，与 `MANUAL_STOP` 同路径处理，不弹出错误弹窗。
-    - [ ] 20.6.5 执行 `npm run build` 验证通过。
+- [x] **DONE** **20.6 [ROBUST-02] 用 `AbortController` 实现 fetch 即时中断**
+    - [x] 20.6.1 在 `SchedulingContext` 中增加 `abortControllerRef`，每次排期开始时创建新实例。
+    - [x] 20.6.2 `callAI` 函数签名增加 `signal?: AbortSignal` 参数，传入 `fetch` 的第二个参数。
+    - [x] 20.6.3 `stopScheduling` 在设置 `stopRequestedRef` 同时调用 `abortControllerRef.current?.abort()`。
+    - [x] 20.6.4 处理 `AbortError`，与 `MANUAL_STOP` 同路径处理，不弹出错误弹窗。
+    - [x] 20.6.5 执行 `npm run build` 验证通过。
 
-- [ ] **20.7 [ACCURACY-02] 放宽 PASS 2 回滚条件，覆盖 dev 严重欠配场景**
-    - [ ] 20.7.1 在现有回滚条件基础上，增加补充条件：`dev 已排 < devTotalMd × 0.5 && testGap === testTotalMd`。
-    - [ ] 20.7.2 执行 `npm run build` 并手动验证：dev 仅分配 30% 且 test 完全未排的项目可被正确回滚。
+- [x] **DONE** **20.7 [ACCURACY-02] 放宽 PASS 2 回滚条件，覆盖 dev 严重欠配场景**
+    - [x] 20.7.1 在现有回滚条件基础上，增加补充条件：`dev 已排 < devTotalMd × 0.5 && testGap === testTotalMd`。
+    - [x] 20.7.2 执行 `npm run build` 并手动验证：dev 仅分配 30% 且 test 完全未排的项目可被正确回滚。
 
-- [ ] **20.8 [ACCURACY-03] Cap 公式统一精度，仅在最终写入时取整**
-    - [ ] 20.8.1 `runAudit` 中 `devGap`、`testGap`、`idleMd` 内部计算保留浮点数。
-    - [ ] 20.8.2 `applySuggestions` 内 `finalMd` 计算时对浮点 cap 取 `Math.ceil` 后再与 1 比较。
-    - [ ] 20.8.3 写入 IndexedDB 和 UI 显示前统一执行 `Math.round`。
-    - [ ] 20.8.4 执行 `npm run build` 验证通过。
+- [x] **DONE** **20.8 [ACCURACY-03] Cap 公式统一精度，仅在最终写入时取整**
+    - [x] 20.8.1 `runAudit` 中 `devGap`、`testGap`、`idleMd` 内部计算保留浮点数。
+    - [x] 20.8.2 `applySuggestions` 内 `finalMd` 计算时对浮点 cap 取 `Math.ceil` 后再与 1 比较。
+    - [x] 20.8.3 写入 IndexedDB 和 UI 显示前统一执行 `Math.round`。
+    - [x] 20.8.4 执行 `npm run build` 验证通过。
 
 ### P3 — 酌情执行（Token 成本 & 低频性能）
 
-- [ ] **20.9 [COST-01] 裁剪发送 AI 的资源 JSON，减少 Token 消耗**
-    - [ ] 20.9.1 `scheduleSummary` 字段超过 200 字符时，截断为最近 3 个 Free Window 信息。
-    - [ ] 20.9.2 确认 dev pass 只传开发人员、test pass 只传测试人员（当前外层已过滤，确认一致）。
-    - [ ] 20.9.3 执行 `npm run build` 验证通过。
+- [x] **DONE** **20.9 [COST-01] 裁剪发送 AI 的资源 JSON，减少 Token 消耗**
+    - [x] 20.9.1 `scheduleSummary` 字段超过 200 字符时，截断为最近 3 个 Free Window 信息。
+    - [x] 20.9.2 确认 dev pass 只传开发人员、test pass 只传测试人员（当前外层已过滤，确认一致）。
+    - [x] 20.9.3 执行 `npm run build` 验证通过。
 
-- [ ] **20.10 [PERF-04] `getWorkingDays` 预计算，避免重复逐日遍历**
-    - [ ] 20.10.1 调度开始时，预先生成排期窗口内的工作日 `Set<string>`（`workingDaySet`）。
-    - [ ] 20.10.2 `getWorkingDays` 接受可选的 `workingDaySet` 参数，命中时直接过滤计数而非逐日调用 `isWorkingDay`。
-    - [ ] 20.10.3 执行 `npm run build` 验证通过，工作日计数结果与原实现一致。
+- [x] **DONE** **20.10 [PERF-04] `getWorkingDays` 预计算，避免重复逐日遍历**
+    - [x] 20.10.1 调度开始时，预先生成排期窗口内的工作日 `Set<string>`（`workingDaySet`）。
+    - [x] 20.10.2 `getWorkingDays` 接受可选的 `workingDaySet` 参数，命中时直接过滤计数而非逐日调用 `isWorkingDay`。
+    - [x] 20.10.3 执行 `npm run build` 验证通过，工作日计数结果与原实现一致。

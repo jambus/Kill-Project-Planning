@@ -4,7 +4,7 @@
 
 // 2026 Chinese Public Holidays (Example for the prompt)
 // Simplified list for demo purposes
-export let HOLIDAYS = [
+const defaultHolidays = [
   '2026-01-01', // New Year
   '2026-02-17', '2026-02-18', '2026-02-19', '2026-02-20', '2026-02-21', '2026-02-22', '2026-02-23', // Spring Festival
   '2026-04-04', '2026-04-05', '2026-04-06', // Qingming Festival
@@ -14,13 +14,16 @@ export let HOLIDAYS = [
 ];
 
 // Special Workdays (Saturdays/Sundays that are workdays)
-export let SPECIAL_WORKDAYS = [
+const defaultSpecialWorkdays = [
   '2026-02-15', '2026-03-01', // Spring Festival adjustments
 ];
 
+export let HOLIDAYS = new Set<string>(defaultHolidays);
+export let SPECIAL_WORKDAYS = new Set<string>(defaultSpecialWorkdays);
+
 export const updateHolidaysConfig = (holidays: string[], specialWorkdays: string[]) => {
-  HOLIDAYS = holidays;
-  SPECIAL_WORKDAYS = specialWorkdays;
+  HOLIDAYS = new Set(holidays);
+  SPECIAL_WORKDAYS = new Set(specialWorkdays);
 };
 
 /**
@@ -41,10 +44,10 @@ export const isWorkingDay = (date: Date): boolean => {
   const day = date.getDay(); // 0 is Sunday, 6 is Saturday
 
   // If it's a special workday, return true
-  if (SPECIAL_WORKDAYS.includes(dateStr)) return true;
+  if (SPECIAL_WORKDAYS.has(dateStr)) return true;
 
   // If it's a holiday, return false
-  if (HOLIDAYS.includes(dateStr)) return false;
+  if (HOLIDAYS.has(dateStr)) return false;
 
   // Otherwise, return true if it's a weekday
   return day !== 0 && day !== 6;
@@ -53,12 +56,19 @@ export const isWorkingDay = (date: Date): boolean => {
 /**
  * Get the number of working days between two dates (inclusive)
  */
-export const getWorkingDays = (start: Date, end: Date): number => {
+export const getWorkingDays = (start: Date, end: Date, workingDaySet?: Set<string>): number => {
   let count = 0;
   const current = new Date(start);
   while (current <= end) {
-    if (isWorkingDay(current)) {
-      count++;
+    const dateStr = current.toISOString().split('T')[0];
+    if (workingDaySet) {
+      if (workingDaySet.has(dateStr)) {
+        count++;
+      }
+    } else {
+      if (isWorkingDay(current)) {
+        count++;
+      }
     }
     current.setDate(current.getDate() + 1);
   }

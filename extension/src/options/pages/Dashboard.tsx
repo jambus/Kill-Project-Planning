@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { useScheduling } from '../../context/SchedulingContext';
-import { Users, ChevronDown, ArrowRight, ClipboardList, AlertTriangle, FileWarning, Search, TriangleAlert, User, Briefcase, RefreshCcw, CheckCircle2, Settings2, Zap, X } from 'lucide-react';
+import { Users, ChevronDown, ArrowRight, ClipboardList, AlertTriangle, FileWarning, Search, TriangleAlert, User, Briefcase, RefreshCcw, CheckCircle2, Settings2, Zap, X, Play } from 'lucide-react';
 import { calculateMonthlyMD, getWorkingDays } from '../../utils/dateUtils';
 
 export const Dashboard = () => {
@@ -173,18 +173,32 @@ export const Dashboard = () => {
               <span>停止排期</span>
             </button>
           ) : (
-            <button 
-              onClick={() => handleGenerateSchedule(selectedYear, startMonth, endMonth)}
-              disabled={isScheduling || !readyProjects.length || !resources?.length}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg ${
-                isScheduling 
-                  ? 'bg-blue-100 text-blue-400 cursor-not-allowed shadow-none' 
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white shadow-blue-100'
-              }`}
-            >
-              <Zap size={16} className={isScheduling ? "animate-pulse" : ""} />
-              <span>一键 AI 智能排期</span>
-            </button>
+            <div className="flex items-center space-x-2">
+              <button 
+                onClick={() => handleGenerateSchedule(selectedYear, startMonth, endMonth, false)}
+                disabled={isScheduling || !readyProjects.length || !resources?.length}
+                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg ${
+                  isScheduling 
+                    ? 'bg-blue-100 text-blue-400 cursor-not-allowed shadow-none' 
+                    : 'bg-white text-blue-600 border border-blue-100 hover:bg-blue-50 shadow-blue-50'
+                }`}
+              >
+                <Play size={16} />
+                <span>继续排期</span>
+              </button>
+              <button 
+                onClick={() => handleGenerateSchedule(selectedYear, startMonth, endMonth, true)}
+                disabled={isScheduling || !readyProjects.length || !resources?.length}
+                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg ${
+                  isScheduling 
+                    ? 'bg-blue-100 text-blue-400 cursor-not-allowed shadow-none' 
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white shadow-blue-100'
+                }`}
+              >
+                <Zap size={16} className={isScheduling ? "animate-pulse" : ""} />
+                <span>一键 AI 智能排期</span>
+              </button>
+            </div>
           )}
         </div>
       </div>

@@ -1,10 +1,24 @@
 # Changelog
 
-## [1.0.3] - 2026-05-05
+## [1.0.3] - 2026-05-13
 
- ### 优化与增强 (Improvements & Enhancements)
-    **开源协议变更**：将项目的授权协议变更为 **MIT License**，鼓励社区贡献与二次开发，同时允许个人及商业用途的免费使用。
-
+### 优化与增强 (Improvements & Enhancements)
+- **调度引擎核心性能优化 (Scheduling Engine Optimization)**：
+  - **增量矩阵更新 (Incremental Matrix Update)**：重构了资源日历槽位矩阵的管理方式，引入内存共享的 `DailySlot` Map。在应用 AI 建议时仅对受影响人员执行增量更新，大幅减少了在 `applySuggestions` 内循环中触发全量审计 (`runAudit`) 的性能开销。
+  - **O(1) 查找节假日 (O(1) Holiday Lookup)**：将 `dateUtils.ts` 中的节假日和调休日数组转换为 `Set<string>` 结构。在遍历海量日期范围时，将工作日判断的复杂度从线性查找降为常数级查找。
+  - **矩阵共享与单次构建 (Single Calendar Build)**：确保 `runAudit`、日期推算及 AI 窗口生成共享同一套内存矩阵。排期过程中不再对同一个资源重复生成独立的日历副本，进一步降低了内存抖动和计算冗余。
+  - **工作日预计算 (Working Day Pre-calculation)**：系统在排期开始时一次性构建排期窗口内的完整工作日 `Set`，后续所有 `getWorkingDays` 和 `calculateEndDate` 逻辑直接查表计数，彻底消除了重复的逐日逻辑判定。
+- **排期准确性与健壮性提升 (Accuracy & Robustness)**：
+  - **测试准入逻辑修正 (Test Entry Midpoint Logic)**：根据 PRD 规范，将测试人员的最早介入日期修正为该项目所有已分配开发任务时间跨度的**中点 (Midpoint)**，而非简单的开发开始日。这有效解决了测试资源在开发前期过早占位、导致空等的问题。
+  - **回滚条件策略放宽 (Relaxed Rollback Conditions)**：增强了 PASS 2 的完整性审计逻辑。新增“开发严重欠配（已排 < 50%）且测试完全未排”的识别规则。此类项目会被果断回滚并加入重试队列，将宝贵的人力释放给后续能闭环的项目。
+  - **计算精度全链路保持 (Full Precision Calculation)**：内部排期缺口 (`Gap`)、闲置天数 (`idleMd`) 及人天计算在流转过程中完全保留浮点精度，仅在写入 IndexedDB 持久化和 UI 最终渲染时执行四舍五入。有效消除了因连续取整导致的累积误差和边界值漂移。
+  - **AI 结果严格校验 (Strict AI Response Validation)**：在解析 LLM 返回的 JSON 数组时，新增了严格的 Schema 过滤层。自动剔除 `projectId`/`resourceId` 缺失、分配人天小于 1 或百分比超出 (1-200%) 范围的脏数据，并记录警告日志。
+  - **即时中断网络请求 (Immediate Fetch Interruption)**：在 `SchedulingContext` 中引入了 `AbortController`。现在点击「停止排期」不仅会停止逻辑循环，还会立即强制切断正在进行中的 AI HTTP 请求，确保网络资源即时释放。
+- **支持「继续排期」功能 (Continue Scheduling Support)**：在全局排期大盘新增「继续排期」按钮。与「一键排期」清空重排不同，「继续排期」会保留 IndexedDB 中已有的分配数据，并在当前资源矩阵基础上增量排期，支持对新导入的项目进行追加分配或分阶段调度。
+- **Token 消耗优化 (Cost Optimization)**：
+  - **上下文上下文裁剪 (Context Trimming)**：对发送给 AI 的资源 `scheduleSummary` 字段执行智能裁剪。当空闲窗口信息过多导致 JSON 长度超限时，自动仅保留最近 3 个空闲区间，大幅缩减了高并发调度时的 Token 费用。
+- **其他更新**：
+  - **开源协议变更**：将项目的授权协议变更为 **MIT License**，鼓励社区贡献与二次开发，同时允许个人及商业用途的免费使用。
 
 ## [1.0.2] - 2026-05-03
 
