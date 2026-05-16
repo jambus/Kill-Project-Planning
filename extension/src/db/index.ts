@@ -80,17 +80,30 @@ export class PlannerDatabase extends Dexie {
     });
     
     this.version(2).stores({
-      projects: '++id, name, status, priority, digitalResponsible' // Updated for Google Sheets
+      resources: '++id, name, role',
+      projects: '++id, name, status, priority, digitalResponsible',
+      allocations: '++id, resourceId, projectId, startDate, endDate',
+      jiraWorklogs: '++id, issueId, issueKey, authorAccountId',
+      settings: 'key'
     }).upgrade(tx => {
       // Clear old jira projects since schema fundamentally changed
       return tx.table('projects').clear();
     });
 
     this.version(3).stores({
-      allocations: '++id, resourceId, projectId, startDate, endDate, allocationType'
+      resources: '++id, name, role',
+      projects: '++id, name, status, priority, digitalResponsible',
+      allocations: '++id, resourceId, projectId, startDate, endDate, allocationType',
+      jiraWorklogs: '++id, issueId, issueKey, authorAccountId',
+      settings: 'key'
     });
 
     this.version(4).stores({
+      resources: '++id, name, role',
+      projects: '++id, name, status, priority, digitalResponsible',
+      allocations: '++id, resourceId, projectId, startDate, endDate, allocationType',
+      jiraWorklogs: '++id, issueId, issueKey, authorAccountId',
+      settings: 'key',
       skills: '++id, name, type'
     });
   }
