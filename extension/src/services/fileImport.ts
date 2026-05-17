@@ -18,187 +18,191 @@ const readWorkbook = (data: ArrayBuffer): XLSX.WorkBook => {
   return XLSX.read(data, { type: 'array', codepage: 65001 });
 };
 
-export const importProjectsFromFile = async (file: File): Promise<number> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const result = e.target?.result;
-        if (!result) throw new Error('读取文件失败');
-        
-        const workbook = readWorkbook(result as ArrayBuffer);
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        
-        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        
-        if (!rows || rows.length < 2) {
-          throw new Error('文件中没有数据行');
-        }
+export const importProjectsFromFile = async (files: File | FileList | File[]): Promise<number> => {
+  const fileList = 'length' in files ? Array.from(files) : [files];
+  let allProjects: any[] = [];
 
-        const headers = rows[0].map(h => (h || '').toString());
-        
-        // Map header names to indices
-        const idxName = findColumnIndex(headers, ['project', '项目名称', 'epic']);
-        const idxBusinessOwner = findColumnIndex(headers, ['business owner', '业务方', '业务负责']);
-        const idxPriority = findColumnIndex(headers, ['priority', '优先级']);
-        const idxStatus = findColumnIndex(headers, ['status', '状态']);
-        const idxDigitalResponsible = findColumnIndex(headers, ['digital responsible', '研发负责', '负责人']);
-        const idxStartDate = findColumnIndex(headers, ['start in', '开始时间', 'start date']);
-        const idxEndDate = findColumnIndex(headers, ['end in', '结束时间', 'end date']);
-        const idxGoLive = findColumnIndex(headers, ['go-live', 'go live', 'estimated go-live time', '上线时间']);
-        const idxComments = findColumnIndex(headers, ['comments', '备注', '说明']);
-        const idxJiraKey = findColumnIndex(headers, ['jira epic key', 'jira key', 'jira']);
-        const idxTechLead = findColumnIndex(headers, ['project tech lead', 'tech lead', '技术负责']);
-        const idxQualityLead = findColumnIndex(headers, ['project quality lead', 'quality lead', '质量负责', '测试负责']);
-        const idxDevMd = findColumnIndex(headers, ['total dev md', 'dev total md', '开发人天', '开发预估']);
-        const idxTestMd = findColumnIndex(headers, ['total test md', 'test total md', '测试人天', '测试预估']);
-        const idxDetailsDevMd = findColumnIndex(headers, ['details product dev md', 'details dev md']);
-        const idxDetailsTestMd = findColumnIndex(headers, ['details product test md', 'details test md']);
-        const idxTechStack = findColumnIndex(headers, ['tech stack', '技术栈']);
-        const idxDomain = findColumnIndex(headers, ['domain', '产品域', '业务域']);
+  for (const file of fileList) {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = readWorkbook(data);
+      
+      // Default to importing the first sheet only, as requested
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) continue;
 
-        const projectsToInsert = rows.slice(1).map(row => {
-          if (!row || !Array.isArray(row)) return null;
-          return {
-            name: idxName !== -1 ? row[idxName]?.toString() || 'Unknown Project' : 'Unknown Project',
-            businessOwner: idxBusinessOwner !== -1 ? row[idxBusinessOwner]?.toString() || '' : '',
-            priority: idxPriority !== -1 ? row[idxPriority]?.toString() || 'Medium' : 'Medium',
-            status: idxStatus !== -1 ? row[idxStatus]?.toString() || 'To Do' : 'To Do',
-            digitalResponsible: idxDigitalResponsible !== -1 ? row[idxDigitalResponsible]?.toString() || '' : '',
-            startDate: idxStartDate !== -1 ? row[idxStartDate]?.toString() || '' : '',
-            endDate: idxEndDate !== -1 ? row[idxEndDate]?.toString() || '' : '',
-            estimatedGoLiveTime: idxGoLive !== -1 ? row[idxGoLive]?.toString() || '' : '',
-            comments: idxComments !== -1 ? row[idxComments]?.toString() || '' : '',
-            jiraEpicKey: idxJiraKey !== -1 ? row[idxJiraKey]?.toString() || '' : '',
-            projectTechLead: idxTechLead !== -1 ? row[idxTechLead]?.toString() || '' : '',
-            projectQualityLead: idxQualityLead !== -1 ? row[idxQualityLead]?.toString() || '' : '',
-            devTotalMd: idxDevMd !== -1 ? Number(row[idxDevMd]) || 0 : 0,
-            testTotalMd: idxTestMd !== -1 ? Number(row[idxTestMd]) || 0 : 0,
-            detailsProductDevMd: idxDetailsDevMd !== -1 ? row[idxDetailsDevMd]?.toString() || '' : '',
-            detailsProductTestMd: idxDetailsTestMd !== -1 ? row[idxDetailsTestMd]?.toString() || '' : '',
-            techStack: idxTechStack !== -1 ? row[idxTechStack]?.toString() || '' : '',
-            domain: idxDomain !== -1 ? row[idxDomain]?.toString() || '' : '',
-          };
-        }).filter((p): p is any => p !== null && (p.name !== 'Unknown Project' || p.businessOwner !== ''));
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      if (!rows || rows.length < 2) continue;
 
-        await db.projects.clear();
-        if (projectsToInsert.length > 0) {
-          await db.projects.bulkAdd(projectsToInsert);
-        }
-        
-        resolve(projectsToInsert.length);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = (error) => reject(error);
-    reader.readAsArrayBuffer(file);
-  });
+      const headers = rows[0].map(h => (h || '').toString());
+      
+      // Map header names to indices
+      const idxName = findColumnIndex(headers, ['project', '项目名称', 'epic']);
+      const idxBusinessOwner = findColumnIndex(headers, ['business owner', '业务方', '业务负责']);
+      const idxPriority = findColumnIndex(headers, ['priority', '优先级']);
+      const idxStatus = findColumnIndex(headers, ['status', '状态']);
+      const idxDigitalResponsible = findColumnIndex(headers, ['digital responsible', '研发负责', '负责人']);
+      const idxStartDate = findColumnIndex(headers, ['start in', '开始时间', 'start date']);
+      const idxEndDate = findColumnIndex(headers, ['end in', '结束时间', 'end date']);
+      const idxGoLive = findColumnIndex(headers, ['go-live', 'go live', 'estimated go-live time', '上线时间']);
+      const idxComments = findColumnIndex(headers, ['comments', '备注', '说明']);
+      const idxJiraKey = findColumnIndex(headers, ['jira epic key', 'jira key', 'jira']);
+      const idxTechLead = findColumnIndex(headers, ['project tech lead', 'tech lead', '技术负责']);
+      const idxQualityLead = findColumnIndex(headers, ['project quality lead', 'quality lead', '质量负责', '测试负责']);
+      const idxDevMd = findColumnIndex(headers, ['total dev md', 'dev total md', '开发人天', '开发预估']);
+      const idxTestMd = findColumnIndex(headers, ['total test md', 'test total md', '测试人天', '测试预估']);
+      const idxDetailsDevMd = findColumnIndex(headers, ['details product dev md', 'details dev md']);
+      const idxDetailsTestMd = findColumnIndex(headers, ['details product test md', 'details test md']);
+      const idxTechStack = findColumnIndex(headers, ['tech stack', '技术栈']);
+      const idxDomain = findColumnIndex(headers, ['domain', '产品域', '业务域']);
+
+      const sheetProjects = rows.slice(1).map(row => {
+        if (!row || !Array.isArray(row)) return null;
+        return {
+          name: idxName !== -1 ? row[idxName]?.toString() || 'Unknown Project' : 'Unknown Project',
+          businessOwner: idxBusinessOwner !== -1 ? row[idxBusinessOwner]?.toString() || '' : '',
+          priority: idxPriority !== -1 ? row[idxPriority]?.toString() || 'Medium' : 'Medium',
+          status: idxStatus !== -1 ? row[idxStatus]?.toString() || 'To Do' : 'To Do',
+          digitalResponsible: idxDigitalResponsible !== -1 ? row[idxDigitalResponsible]?.toString() || '' : '',
+          startDate: idxStartDate !== -1 ? row[idxStartDate]?.toString() || '' : '',
+          endDate: idxEndDate !== -1 ? row[idxEndDate]?.toString() || '' : '',
+          estimatedGoLiveTime: idxGoLive !== -1 ? row[idxGoLive]?.toString() || '' : '',
+          comments: idxComments !== -1 ? row[idxComments]?.toString() || '' : '',
+          jiraEpicKey: idxJiraKey !== -1 ? row[idxJiraKey]?.toString() || '' : '',
+          projectTechLead: idxTechLead !== -1 ? row[idxTechLead]?.toString() || '' : '',
+          projectQualityLead: idxQualityLead !== -1 ? row[idxQualityLead]?.toString() || '' : '',
+          devTotalMd: idxDevMd !== -1 ? Number(row[idxDevMd]) || 0 : 0,
+          testTotalMd: idxTestMd !== -1 ? Number(row[idxTestMd]) || 0 : 0,
+          detailsProductDevMd: idxDetailsDevMd !== -1 ? row[idxDetailsDevMd]?.toString() || '' : '',
+          detailsProductTestMd: idxDetailsTestMd !== -1 ? row[idxDetailsTestMd]?.toString() || '' : '',
+          techStack: idxTechStack !== -1 ? row[idxTechStack]?.toString() || '' : '',
+          domain: idxDomain !== -1 ? row[idxDomain]?.toString() || '' : '',
+        };
+      }).filter((p): p is any => p !== null && (p.name !== 'Unknown Project' || p.businessOwner !== ''));
+
+      allProjects = [...allProjects, ...sheetProjects];
+    } catch (err) {
+      console.error(`Error processing file ${file.name}:`, err);
+      throw err;
+    }
+  }
+
+  await db.projects.clear();
+  if (allProjects.length > 0) {
+    await db.projects.bulkAdd(allProjects);
+  }
+  return allProjects.length;
 };
 
-export const importResourcesFromFile = async (file: File): Promise<number> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const result = e.target?.result;
-        if (!result) throw new Error('读取文件失败');
-        
-        const workbook = readWorkbook(result as ArrayBuffer);
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        
-        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        
-        if (!rows || rows.length < 2) {
-          throw new Error('文件中没有数据行');
-        }
+export const importResourcesFromFile = async (files: File | FileList | File[]): Promise<number> => {
+  const fileList = 'length' in files ? Array.from(files) : [files];
+  let allResources: any[] = [];
 
-        const headers = rows[0].map(h => (h || '').toString());
-        
-        const idxName = findColumnIndex(headers, ['name', '姓名', '成员']);
-        const idxRole = findColumnIndex(headers, ['role', '角色', '专业角色', '职位']);
-        const idxCapacity = findColumnIndex(headers, ['capacity', '负荷', '可用负荷', '投入比']);
-        const idxSkills = findColumnIndex(headers, ['skills', '技能', '标签', '核心技能']);
+  for (const file of fileList) {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = readWorkbook(data);
+      
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) continue;
 
-        const resourcesToInsert = rows.slice(1).map(row => {
-          if (!row || !Array.isArray(row)) return null;
-          const rawSkills = idxSkills !== -1 ? row[idxSkills]?.toString() || '' : '';
-          const rawCapacity = idxCapacity !== -1 ? row[idxCapacity]?.toString() || '100' : '100';
-          return {
-            name: idxName !== -1 ? row[idxName]?.toString() || 'Unknown' : 'Unknown',
-            role: idxRole !== -1 ? row[idxRole]?.toString() || '前端工程师' : '前端工程师',
-            capacity: Number(rawCapacity.replace('%', '')) || 100,
-            skills: rawSkills.split(/[,,，，]/).map((s: string) => s.trim()).filter(Boolean)
-          };
-        }).filter((r): r is any => r !== null && r.name !== 'Unknown');
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      if (!rows || rows.length < 2) continue;
 
-        await db.resources.clear();
-        if (resourcesToInsert.length > 0) {
-          await db.resources.bulkAdd(resourcesToInsert);
-        }
-        
-        resolve(resourcesToInsert.length);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = (error) => reject(error);
-    reader.readAsArrayBuffer(file);
-  });
+      const headers = rows[0].map(h => (h || '').toString());
+      
+      const idxName = findColumnIndex(headers, ['name', '姓名', '成员']);
+      const idxRole = findColumnIndex(headers, ['role', '角色', '专业角色', '职位']);
+      const idxCapacity = findColumnIndex(headers, ['capacity', '负荷', '可用负荷', '投入比']);
+      const idxSkills = findColumnIndex(headers, ['skills', '技能', '标签', '核心技能']);
+
+      const sheetResources = rows.slice(1).map(row => {
+        if (!row || !Array.isArray(row)) return null;
+        const rawSkills = idxSkills !== -1 ? row[idxSkills]?.toString() || '' : '';
+        const rawCapacity = idxCapacity !== -1 ? row[idxCapacity]?.toString() || '100' : '100';
+        return {
+          name: idxName !== -1 ? row[idxName]?.toString() || 'Unknown' : 'Unknown',
+          role: idxRole !== -1 ? row[idxRole]?.toString() || '前端工程师' : '前端工程师',
+          capacity: Number(rawCapacity.replace('%', '')) || 100,
+          skills: rawSkills.split(/[,,，，]/).map((s: string) => s.trim()).filter(Boolean)
+        };
+      }).filter((r): r is any => r !== null && r.name !== 'Unknown');
+
+      allResources = [...allResources, ...sheetResources];
+    } catch (err) {
+      console.error(`Error processing file ${file.name}:`, err);
+      throw err;
+    }
+  }
+
+  await db.resources.clear();
+  if (allResources.length > 0) {
+    await db.resources.bulkAdd(allResources);
+  }
+  return allResources.length;
 };
 
-export const importSkillsFromFile = async (file: File): Promise<number> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const result = e.target?.result;
-        if (!result) throw new Error('读取文件失败');
-        
-        const workbook = readWorkbook(result as ArrayBuffer);
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        
-        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        
-        if (!rows || rows.length < 2) {
-          throw new Error('文件中没有数据行');
-        }
+export const importSkillsFromFile = async (files: File | FileList | File[]): Promise<number> => {
+  const fileList = 'length' in files ? Array.from(files) : [files];
+  let allSkillsToInsert: any[] = [];
 
-        const headers = rows[0].map(h => (h || '').toString());
-        
-        const idxName = findColumnIndex(headers, ['name', '技能', '标签名称']);
-        const idxType = findColumnIndex(headers, ['type', '类别', '类型']);
+  for (const file of fileList) {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = readWorkbook(data);
+      
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) continue;
 
-        const skillsToInsert = rows.slice(1).map(row => {
-          if (!row || !Array.isArray(row)) return null;
-          const type = idxType !== -1 ? row[idxType]?.toString().toLowerCase() || 'business' : 'business';
-          return {
-            name: idxName !== -1 ? row[idxName]?.toString() || 'Unknown' : 'Unknown',
-            type: (type.includes('tech') || type.includes('技术')) ? 'technical' : 'business'
-          } as const;
-        }).filter((s): s is any => s !== null && s.name !== 'Unknown');
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      if (!rows || rows.length < 2) continue;
 
-        if (skillsToInsert.length > 0) {
-          // Add only unique new skills by name
-          const existing = await db.skills.toArray();
-          const existingNames = new Set(existing.map(s => s.name.toLowerCase()));
-          const uniqueNew = skillsToInsert.filter(s => !existingNames.has(s.name.toLowerCase()));
-          
-          if (uniqueNew.length > 0) {
-             await db.skills.bulkAdd(uniqueNew as any);
-          }
-          resolve(uniqueNew.length);
-        } else {
-          resolve(0);
-        }
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = (error) => reject(error);
-    reader.readAsArrayBuffer(file);
-  });
+      const headers = rows[0].map(h => (h || '').toString());
+      
+      const idxName = findColumnIndex(headers, ['name', '技能', '标签名称']);
+      const idxType = findColumnIndex(headers, ['type', '类别', '类型']);
+
+      const sheetSkills = rows.slice(1).map(row => {
+        if (!row || !Array.isArray(row)) return null;
+        const type = idxType !== -1 ? row[idxType]?.toString().toLowerCase() || 'business' : 'business';
+        return {
+          name: idxName !== -1 ? row[idxName]?.toString() || 'Unknown' : 'Unknown',
+          type: (type.includes('tech') || type.includes('技术')) ? 'technical' : 'business'
+        } as const;
+      }).filter((s): s is any => s !== null && s.name !== 'Unknown');
+
+      allSkillsToInsert = [...allSkillsToInsert, ...sheetSkills];
+    } catch (err) {
+      console.error(`Error processing file ${file.name}:`, err);
+      throw err;
+    }
+  }
+
+  if (allSkillsToInsert.length > 0) {
+    // Add only unique new skills by name
+    const existing = await db.skills.toArray();
+    const existingNames = new Set(existing.map(s => s.name.toLowerCase()));
+    const uniqueNew = allSkillsToInsert.filter(s => !existingNames.has(s.name.toLowerCase()));
+    
+    // Further deduplicate within the current import batch
+    const seenInBatch = new Set<string>();
+    const finalUniqueNew = uniqueNew.filter(s => {
+      const lowerName = s.name.toLowerCase();
+      if (seenInBatch.has(lowerName)) return false;
+      seenInBatch.add(lowerName);
+      return true;
+    });
+
+    if (finalUniqueNew.length > 0) {
+       await db.skills.bulkAdd(finalUniqueNew as any);
+    }
+    return finalUniqueNew.length;
+  }
+  return 0;
 };
