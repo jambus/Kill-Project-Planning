@@ -1,6 +1,15 @@
 # Changelog
 
-## [1.0.3] - 2026-05-13
+## [1.0.3] - 2026-05-17
+
+### 修复与稳定性 (Fixes & Stability)
+- **数据持久化重磅修复 (Critical Persistence Fix)**：
+  - **修正 Dexie Schema 版本演进逻辑**：修复了在数据库版本升级过程中，因后续版本未完全定义所有数据表而导致部分表（如 `projects`, `resources`, `settings`）被意外删除的严重 Bug。现在所有版本定义均显式包含全量表结构，确保数据在 schema 变更时完美继承。
+  - **稳定扩展 ID (Stable Extension ID)**：在 `manifest.json` 中配置了固定的 `key`（基于项目私钥提取）。解决了在开发环境下因 ID 随机变化导致 `chrome.storage.local` 和 IndexedDB 存储原点（Origin）重置的问题，保障了系统设置与业务数据的长期持久化。
+- **统一报错反馈机制 (Unified Error Feedback)**：
+  - **抽象化通用报错组件 (ErrorModal)**：封装了标准化的全局报错弹出窗口组件，替代了原始的 `window.alert()`。
+  - **全量 UI 覆盖**：在「项目管理」、「人员管理」及「技能管理」等所有数据导入入口集成了该组件。当文件格式非法或解析失败时，系统将以更加专业、友好的图层模态框展示错误详情。
+  - **日志追踪增强**：所有业务报错同步通过 `console.error()` 输出至浏览器控制台，并包含详细的技术上下文，极大提升了排障效率。
 
 ### 优化与增强 (Improvements & Enhancements)
 - **调度引擎核心性能优化 (Scheduling Engine Optimization)**：

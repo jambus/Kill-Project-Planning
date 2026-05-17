@@ -293,3 +293,26 @@
     - [x] 20.10.1 调度开始时，预先生成排期窗口内的工作日 `Set<string>`（`workingDaySet`）。
     - [x] 20.10.2 `getWorkingDays` 接受可选的 `workingDaySet` 参数，命中时直接过滤计数而非逐日调用 `isWorkingDay`。
     - [x] 20.10.3 执行 `npm run build` 验证通过，工作日计数结果与原实现一致。
+
+## 阶段二十一：数据持久化与交互健壮性加固 (Phase 21: Persistence & UI Robustness)
+
+### P0 — 关键修复 (Persistence)
+
+- [x] **DONE** **21.1 [FIX-01] 修复 Dexie Schema 演进导致的删表 Bug**
+    - [x] 21.1.1 在 `db/index.ts` 的所有版本定义中显式包含全量 Table 定义，防止升级时丢表。
+- [x] **DONE** **21.2 [FIX-02] 稳定扩展 ID，保护 Origin 存储**
+    - [x] 21.2.1 从私钥提取公钥并配置到 `manifest.json` 的 `key` 字段，确保 Extension ID 恒定。
+
+### P1 — 体验优化 (UI/UX)
+
+- [x] **DONE** **21.3 [UI-01] 抽象化通用 ErrorModal 组件**
+    - [x] 21.3.1 封装 `ErrorModal.tsx`，支持结构化报错展示。
+- [x] **DONE** **21.4 [UI-02] 全系统报错反馈升级**
+    - [x] 21.4.1 在项目、人员、技能导入入口全面集成 `ErrorModal`。
+    - [x] 21.4.2 确保报错同步输出至 Console 详细日志。
+
+### P2 — 文档归档 (Docs)
+
+- [x] **DONE** **21.5 [DOC-01] 更新 PRD 与 Changelog**
+    - [x] 21.5.1 同步 3.3.9 和 3.3.10 章节至 `intelligent-resource-planner.md`。
+    - [x] 21.5.2 更新 `CHANGELOG.md` 归档 v1.0.3 变更。

@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { Plus, Briefcase, Cpu, X, Save, Upload, Download, FileDown, CheckCircle2 } from 'lucide-react';
 import { importSkillsFromFile } from '../../services/fileImport';
+import { ErrorModal } from '../components/ErrorModal';
 
 export const Skills = () => {
   const skills = useLiveQuery(() => db.skills.toArray());
@@ -13,6 +14,7 @@ export const Skills = () => {
   const [newSkillType, setNewSkillType] = useState<'business' | 'technical'>('business');
   const [isImporting, setIsImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Initial data seeding
   useEffect(() => {
@@ -58,14 +60,15 @@ export const Skills = () => {
     if (!file) return;
 
     setIsImporting(true);
+    setError(null);
     try {
       const count = await importSkillsFromFile(file);
       setImportSuccess(true);
       setTimeout(() => setImportSuccess(false), 3000);
       console.log(`Successfully imported ${count} unique skills.`);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Import failed:', err);
-      alert('导入失败，请检查文件格式。');
+      setError(err.message);
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -103,6 +106,13 @@ export const Skills = () => {
 
   return (
     <div className="space-y-8">
+      <ErrorModal 
+        isOpen={!!error} 
+        onClose={() => setError(null)} 
+        title="技能导入失败"
+        message="在导入技能标签时遇到了错误。请检查文件格式是否符合要求。"
+        errorDetails={error}
+      />
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">人员技能管理</h2>

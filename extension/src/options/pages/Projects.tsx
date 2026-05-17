@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { FolderKanban, Info, UploadCloud, Download } from 'lucide-react';
 import { importProjectsFromFile } from '../../services/fileImport';
+import { ErrorModal } from '../components/ErrorModal';
 
 const priorityWeight: Record<string, number> = {
   'High': 3,
@@ -28,6 +29,7 @@ export const Projects = () => {
   const projects = useLiveQuery(() => db.projects.toArray());
   const [isImporting, setIsImporting] = useState(false);
   const [message, setMessage] = useState<{type: 'success'|'error', text: string} | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // We no longer manually sort here because the physical order in CSV is the source of truth.
@@ -39,22 +41,33 @@ export const Projects = () => {
     if (!file) return;
 
     setIsImporting(true);
+    setError(null);
     try {
       const count = await importProjectsFromFile(file);
       setMessage({ type: 'success', text: `成功导入 ${count} 个排期项目！` });
+      setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
-      setMessage({ type: 'error', text: `导入失败: ${err.message}` });
+      console.error('项目导入失败:', err);
+      setError(err.message);
+      setMessage(null);
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = ''; // reset input
       }
-      setTimeout(() => setMessage(null), 3000);
     }
   };
 
   return (
     <div className="space-y-6">
+      <ErrorModal 
+        isOpen={!!error} 
+        onClose={() => setError(null)} 
+        title="项目导入失败"
+        message="在导入项目文件时遇到了错误。请检查文件格式是否符合模板要求，并确保表头名称正确。"
+        errorDetails={error}
+      />
+
       <div className="flex justify-between items-start">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">项目管理</h2>

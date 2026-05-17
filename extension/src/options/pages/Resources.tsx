@@ -4,6 +4,7 @@ import { db } from '../../db';
 import { Trash2, Edit2, UserPlus, Save, X, Users, Upload, FileDown, CheckCircle2, Download } from 'lucide-react';
 import { addResource, deleteResource, updateResource } from '../../db/services';
 import { importResourcesFromFile } from '../../services/fileImport';
+import { ErrorModal } from '../components/ErrorModal';
 
 export const Resources = () => {
   const resources = useLiveQuery(() => db.resources.toArray());
@@ -14,6 +15,7 @@ export const Resources = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importSuccess, setImportImportSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<{
     name: string;
@@ -91,14 +93,15 @@ export const Resources = () => {
     if (!file) return;
 
     setIsImporting(true);
+    setError(null);
     try {
       const count = await importResourcesFromFile(file);
       setImportImportSuccess(true);
       setTimeout(() => setImportImportSuccess(false), 3000);
       console.log(`Successfully imported ${count} resources.`);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Import failed:', err);
-      alert('导入失败，请检查文件格式是否符合模板。');
+      setError(err.message);
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -135,6 +138,13 @@ export const Resources = () => {
 
   return (
     <div className="space-y-6">
+      <ErrorModal 
+        isOpen={!!error} 
+        onClose={() => setError(null)} 
+        title="人员导入失败"
+        message="在导入人员文件时遇到了错误。请检查文件格式是否符合模板要求。"
+        errorDetails={error}
+      />
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">团队人员管理</h2>
