@@ -276,11 +276,9 @@ export const SchedulingProvider = ({ children }: { children: ReactNode }) => {
       };
 
       // PASS 0: Deterministic Ops Scheduling (Product Operations)
-      setScheduleStatus(`⚙️ 阶段零：分配产品运维基础人天...`);
+      setScheduleStatus(`⚙️ 阶段零：按月分配产品运维基础人天...`);
       const operations = await db.productOperations.toArray();
       if (operations.length > 0) {
-        const scheduleMonths = endMonth - startMonth + 1;
-        
         // Identify Leads (Good resources) to protect
         const leads = new Set<string>();
         readyProjects.forEach(p => {
@@ -290,11 +288,7 @@ export const SchedulingProvider = ({ children }: { children: ReactNode }) => {
 
         for (const op of operations) {
           checkStop();
-          const targetDevMd = op.monthlyDevMd * scheduleMonths;
-          const targetTestMd = op.monthlyTestMd * scheduleMonths;
           
-          if (targetDevMd <= 0 && targetTestMd <= 0) continue;
-
           // Find candidate resources matching the product name
           const candidates = resources.filter(r => r.skills?.includes(op.productName));
           
@@ -305,50 +299,73 @@ export const SchedulingProvider = ({ children }: { children: ReactNode }) => {
             return aIsLead - bIsLead;
           });
 
-          const allocateOp = async (targetMd: number, phase: 'dev' | 'test') => {
-            let remainingMd = targetMd;
-            const phaseCandidates = candidates.filter(r => {
-              if (phase === 'dev') return ['前端工程师', '后端工程师', 'APP工程师', '全栈工程师'].includes(r.role);
-              return r.role === '测试工程师';
-            });
+          for (let m = startMonth; m <= endMonth; m++) {
+            const targetDevMd = op.monthlyDevMd;
+            const targetTestMd = op.monthlyTestMd;
+            if (targetDevMd <= 0 && targetTestMd <= 0) continue;
 
-            for (const res of phaseCandidates) {
-              if (remainingMd <= 0) break;
-              const { idle } = runAudit([], resources, currentAllocations);
-              const rIdle = idle.find(r => r.id === res.id);
-              if (!rIdle || rIdle.idleMd < 1) continue;
+            const monthStart = `${selectedYear}-${String(m).padStart(2, '0')}-01`;
+            const monthLastDay = new Date(selectedYear, m, 0).getDate();
+            const monthEnd = `${selectedYear}-${String(m).padStart(2, '0')}-${String(monthLastDay).padStart(2, '0')}`;
 
-              const allocMd = Math.min(remainingMd, rIdle.idleMd);
-              if (allocMd < 1) continue;
+            const allocateOpForMonth = async (targetMd: number, phase: 'dev' | 'test') => {
+              let remainingMd = targetMd;
+              const phaseCandidates = candidates.filter(r => {
+                if (phase === 'dev') return ['前端工程师', '后端工程师', 'APP工程师', '全栈工程师'].includes(r.role);
+                return r.role === '测试工程师';
+              });
 
-              const perc = 100;
-              const startDate = findEarliestFitDate(res.id!, currentAllocations, defaultStart, perc, resources);
-              if (startDate > scheduleMaxDate) continue;
+              for (const res of phaseCandidates) {
+                if (remainingMd <= 0) break;
+                const { idle } = runAudit([], resources, currentAllocations);
+                const rIdle = idle.find(r => r.id === res.id);
+                if (!rIdle || rIdle.idleMd < 1) continue;
 
-              let endDate = calculateEndDate(startDate, allocMd, perc);
-              if (endDate > scheduleMaxDate) endDate = scheduleMaxDate;
+                // Check how many days the resource has available in this specific month
+                const resCalendar = getResourceCalendar(res, currentAllocations);
+                const monthSlots = resCalendar.filter(s => s.date >= monthStart && s.date <= monthEnd && s.available >= 100);
+                if (monthSlots.length === 0) continue;
 
-              const allocToSave = { 
-                resourceId: res.id!, 
-                projectId: -(op.id! + 1000000), // Virtual project ID for Ops
-                allocationPercentage: perc, 
-                startDate, 
-                endDate, 
-                allocationType: phase 
-              };
-              currentAllocations.push(allocToSave);
-              await db.allocations.add({
-                ...allocToSave,
-                allocationPercentage: Math.round(perc)
-              } as any);
-              
-              updateResourceCalendar(res.id!, allocToSave);
-              remainingMd -= allocMd;
-            }
-          };
+                const allocMd = Math.min(remainingMd, monthSlots.length);
+                if (allocMd < 1) continue;
 
-          if (targetDevMd > 0) await allocateOp(targetDevMd, 'dev');
-          if (targetTestMd > 0) await allocateOp(targetTestMd, 'test');
+                const perc = 100;
+                // Start from the first available slot in this month
+                const startDate = monthSlots[0].date;
+                let endDate = calculateEndDate(startDate, allocMd, perc);
+                
+                if (endDate > monthEnd) {
+                  endDate = monthEnd;
+                }
+
+                // Recalculate actual MD allocated in this window in case it was capped
+                const actualWorkingDays = getWorkingDays(new Date(startDate), new Date(endDate), workingDaySet);
+                const actualAllocMd = Math.min((actualWorkingDays * perc) / 100, remainingMd);
+
+                if (actualAllocMd >= 1) {
+                  const allocToSave = { 
+                    resourceId: res.id!, 
+                    projectId: -(op.id! + 1000000), // Virtual project ID for Ops
+                    allocationPercentage: perc, 
+                    startDate, 
+                    endDate, 
+                    allocationType: phase 
+                  };
+                  currentAllocations.push(allocToSave);
+                  await db.allocations.add({
+                    ...allocToSave,
+                    allocationPercentage: Math.round(perc)
+                  } as any);
+                  
+                  updateResourceCalendar(res.id!, allocToSave);
+                  remainingMd -= actualAllocMd;
+                }
+              }
+            };
+
+            if (targetDevMd > 0) await allocateOpForMonth(targetDevMd, 'dev');
+            if (targetTestMd > 0) await allocateOpForMonth(targetTestMd, 'test');
+          }
         }
       }
 
