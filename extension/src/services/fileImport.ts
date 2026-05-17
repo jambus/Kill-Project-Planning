@@ -3,12 +3,19 @@ import { db } from '../db';
 
 // Helper to find column index by matching header names (supports English and Chinese)
 const findColumnIndex = (headers: string[], matchNames: string[]): number => {
-  const lowercaseHeaders = headers.map(h => (h || '').toString().toLowerCase().trim());
+  const lowercaseHeaders = (headers || []).map(h => (h || '').toString().toLowerCase().trim());
   for (const name of matchNames) {
-    const idx = lowercaseHeaders.findIndex(h => h.includes(name.toLowerCase()));
+    const searchName = (name || '').toLowerCase();
+    const idx = lowercaseHeaders.findIndex(h => h && typeof h === 'string' && h.includes(searchName));
     if (idx !== -1) return idx;
   }
   return -1; // Not found
+};
+
+// Helper to read workbook with UTF-8 hint for CSV/Text files
+const readWorkbook = (data: ArrayBuffer): XLSX.WorkBook => {
+  // Providing codepage: 65001 (UTF-8) helps SheetJS correctly parse CSVs without BOM
+  return XLSX.read(data, { type: 'array', codepage: 65001 });
 };
 
 export const importProjectsFromFile = async (file: File): Promise<number> => {
@@ -16,14 +23,16 @@ export const importProjectsFromFile = async (file: File): Promise<number> => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const result = e.target?.result;
+        if (!result) throw new Error('读取文件失败');
+        
+        const workbook = readWorkbook(result as ArrayBuffer);
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         
         const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
         
-        if (rows.length < 2) {
+        if (!rows || rows.length < 2) {
           throw new Error('文件中没有数据行');
         }
 
@@ -50,6 +59,7 @@ export const importProjectsFromFile = async (file: File): Promise<number> => {
         const idxDomain = findColumnIndex(headers, ['domain', '产品域', '业务域']);
 
         const projectsToInsert = rows.slice(1).map(row => {
+          if (!row || !Array.isArray(row)) return null;
           return {
             name: idxName !== -1 ? row[idxName]?.toString() || 'Unknown Project' : 'Unknown Project',
             businessOwner: idxBusinessOwner !== -1 ? row[idxBusinessOwner]?.toString() || '' : '',
@@ -70,7 +80,7 @@ export const importProjectsFromFile = async (file: File): Promise<number> => {
             techStack: idxTechStack !== -1 ? row[idxTechStack]?.toString() || '' : '',
             domain: idxDomain !== -1 ? row[idxDomain]?.toString() || '' : '',
           };
-        }).filter(p => p.name !== 'Unknown Project' || p.businessOwner !== '');
+        }).filter((p): p is any => p !== null && (p.name !== 'Unknown Project' || p.businessOwner !== ''));
 
         await db.projects.clear();
         if (projectsToInsert.length > 0) {
@@ -92,14 +102,16 @@ export const importResourcesFromFile = async (file: File): Promise<number> => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const result = e.target?.result;
+        if (!result) throw new Error('读取文件失败');
+        
+        const workbook = readWorkbook(result as ArrayBuffer);
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         
         const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
         
-        if (rows.length < 2) {
+        if (!rows || rows.length < 2) {
           throw new Error('文件中没有数据行');
         }
 
@@ -111,14 +123,16 @@ export const importResourcesFromFile = async (file: File): Promise<number> => {
         const idxSkills = findColumnIndex(headers, ['skills', '技能', '标签', '核心技能']);
 
         const resourcesToInsert = rows.slice(1).map(row => {
+          if (!row || !Array.isArray(row)) return null;
           const rawSkills = idxSkills !== -1 ? row[idxSkills]?.toString() || '' : '';
+          const rawCapacity = idxCapacity !== -1 ? row[idxCapacity]?.toString() || '100' : '100';
           return {
             name: idxName !== -1 ? row[idxName]?.toString() || 'Unknown' : 'Unknown',
             role: idxRole !== -1 ? row[idxRole]?.toString() || '前端工程师' : '前端工程师',
-            capacity: idxCapacity !== -1 ? Number(row[idxCapacity].toString().replace('%', '')) || 100 : 100,
+            capacity: Number(rawCapacity.replace('%', '')) || 100,
             skills: rawSkills.split(/[,,，，]/).map((s: string) => s.trim()).filter(Boolean)
           };
-        }).filter(r => r.name !== 'Unknown');
+        }).filter((r): r is any => r !== null && r.name !== 'Unknown');
 
         await db.resources.clear();
         if (resourcesToInsert.length > 0) {
@@ -140,14 +154,16 @@ export const importSkillsFromFile = async (file: File): Promise<number> => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const result = e.target?.result;
+        if (!result) throw new Error('读取文件失败');
+        
+        const workbook = readWorkbook(result as ArrayBuffer);
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         
         const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
         
-        if (rows.length < 2) {
+        if (!rows || rows.length < 2) {
           throw new Error('文件中没有数据行');
         }
 
@@ -157,12 +173,13 @@ export const importSkillsFromFile = async (file: File): Promise<number> => {
         const idxType = findColumnIndex(headers, ['type', '类别', '类型']);
 
         const skillsToInsert = rows.slice(1).map(row => {
-          const type = idxType !== -1 ? row[idxType]?.toString().toLowerCase() : 'business';
+          if (!row || !Array.isArray(row)) return null;
+          const type = idxType !== -1 ? row[idxType]?.toString().toLowerCase() || 'business' : 'business';
           return {
             name: idxName !== -1 ? row[idxName]?.toString() || 'Unknown' : 'Unknown',
             type: (type.includes('tech') || type.includes('技术')) ? 'technical' : 'business'
           } as const;
-        }).filter(s => s.name !== 'Unknown');
+        }).filter((s): s is any => s !== null && s.name !== 'Unknown');
 
         if (skillsToInsert.length > 0) {
           // Add only unique new skills by name
