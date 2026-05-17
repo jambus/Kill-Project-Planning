@@ -42,13 +42,28 @@ const extractJsonArray = (text: string): any[] => {
     const start = text.indexOf('[');
     const end = text.lastIndexOf(']');
     if (start === -1 || end === -1) return [];
-    return JSON.parse(text.substring(start, end + 1));
+    const arr = JSON.parse(text.substring(start, end + 1));
+    if (!Array.isArray(arr)) return [];
+
+    return arr.filter(entry => {
+      const isValid = 
+        entry.projectId > 0 && 
+        entry.resourceId > 0 && 
+        entry.allocatedMd >= 1 && 
+        entry.allocationPercentage >= 1 && 
+        entry.allocationPercentage <= 200;
+        
+      if (!isValid) {
+        console.warn('[AI Schema] invalid entry:', entry);
+      }
+      return isValid;
+    });
   } catch (err) {
     return [];
   }
 };
 
-const callAI = async (systemMsg: string, prompt: string, settings: AISettings) => {
+const callAI = async (systemMsg: string, prompt: string, settings: AISettings, signal?: AbortSignal) => {
   const url = `${settings.baseUrl.replace(/\/$/, '')}/chat/completions`;
   const response = await fetch(url, {
     method: 'POST',
@@ -60,7 +75,8 @@ const callAI = async (systemMsg: string, prompt: string, settings: AISettings) =
       model: settings.model,
       messages: [{ role: 'system', content: systemMsg }, { role: 'user', content: prompt }],
       temperature: 0.05,
-    })
+    }),
+    signal
   });
   if (!response.ok) throw new Error(`AI API Error: ${response.status}`);
   const data = await response.json();
@@ -98,7 +114,8 @@ export const suggestAllocationsForBatch = async (
   idleResources: { id: number; name: string; role: string; idleMd: number; skills: string[]; scheduleSummary?: string }[],
   phase: 'dev' | 'test',
   strategy: SchedulingStrategy = 'focused',
-  isRelaxed: boolean = false
+  isRelaxed: boolean = false,
+  signal?: AbortSignal
 ): Promise<AIMicroAllocation[]> => {
   const settings = await getAISettings();
   if (!settings) throw new Error('AI API Key is not configured.');
@@ -139,7 +156,7 @@ Return ONLY a JSON Array.`;
   console.log(`[AI Debug] Projects:`, projects.map(p => `${p.name} (Gap: ${p.gap}d, Lead: ${phase === 'dev' ? p.projectTechLead : p.projectQualityLead})`));
   console.log(`[AI Debug] Resources:`, idleResources.map(r => `${r.name} (${r.role}, Idle: ${r.idleMd}d)`));
 
-  const result = await callAI(systemMsg, prompt, settings);
+  const result = await callAI(systemMsg, prompt, settings, signal);
   
   console.log(`[AI Debug] 📥 LLM Response:`, result);
   return result;

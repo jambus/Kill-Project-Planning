@@ -202,22 +202,22 @@
     - [x] **DONE** 11.9.1 排期完成后，输出全局利用率统计：`总可用人天 / 总已排人天 = 利用率 %`，作为排期质量评分展示在大盘上。
     - [x] **DONE** 11.9.2 执行 `npm run build` 确保所有改动通过编译。
 
-    ## 阶段十五：UI 概览增强 (Phase 15: UI Summary Enhancements)
+## 阶段十五：UI 概览增强 (Phase 15: UI Summary Enhancements)
 
     - [x] **DONE** 15.1 **已排项目汇总看板**：在排期大盘新增“已排项目”区块，展示开发/测试均已到位的项目及其负责人与参与人。
 
-    ## 阶段十六：人员管理功能增强 (Phase 16: Resource Management Enhancements)
+## 阶段十六：人员管理功能增强 (Phase 16: Resource Management Enhancements)
 
     - [x] **DONE** 16.1 **人员批量导入**：支持通过上传 CSV/Excel 文件批量录入团队成员。
     - [x] **DONE** 16.2 **导入模板下载**：在人员管理页面提供标准 CSV 模板下载。
     - [x] **DONE** 16.3 **人员数据导出**：支持将当前人力库一键导出为 CSV。
 
-    ## 阶段十七：技能管理体系 (Phase 17: Skills Management System)
+## 阶段十七：技能管理体系 (Phase 17: Skills Management System)
 
     - [x] **DONE** 17.1 **独立技能管理页**：新增 Skills 页面，支持业务领域能力与技术能力的分类展示。
     - [x] **DONE** 17.2 **技能标签 CRUD**：实现技能标签的新增与删除，并内置初始化常用标签。
     - [x] **DONE** 17.3 **数据持久化**：升级 IndexedDB Schema (v4) 以存储技能数据。
-    ## 阶段十八：算法调优与反碎片化 (Phase 18: Algorithm Tuning & Anti-Fragmentation)
+## 阶段十八：算法调优与反碎片化 (Phase 18: Algorithm Tuning & Anti-Fragmentation)
 
     - [x] **DONE** 18.1 **反碎片化指令注入**：在 Prompt 中明确禁止将项目拆解为 1-2 天的小碎片。
     - [x] **DONE** 18.2 **最小分配单元约束**：设定建议最小分配为 3 天，并要求 AI 保持负责人集中（1-2人）。
@@ -226,3 +226,93 @@
     - [x] **DONE** 19.1 **关键负责人锁定**：在 Prompt 中增加强制指令，确保项目的 Tech Lead 和 Quality Lead 只要在库且有空，就必须被排入该项目。
     - [x] **DONE** 19.2 **任务明细关联匹配**：将 `Details Product DEV/TEST MD` 传给 AI，要求其根据明细中的产品/业务关键词，优先匹配具备相应技能标签的人员。
     - [x] **DONE** 19.3 **字段透传优化**：在 `Dashboard.tsx` 的所有排期 Pass 中增加负责人和明细字段的透传。
+
+## 阶段二十：调度引擎性能与准确性优化 (Phase 20: Scheduling Engine Optimization)
+
+> 来源：2026-05-09 代码审查，关联架构文档：`docs/intelligent-resource-planner.md § 3.3.8`
+
+### P0 — 立即执行（性能，直接影响使用体验）
+
+- [x] **DONE** **20.1 [PERF-01] 增量矩阵更新，消除 `applySuggestions` 内循环全量 `runAudit`**
+    - [x] 20.1.1 将 `DailySlot` 矩阵以 `Map<resourceId, DailySlot[]>` 形式在调度会话内存中共享维护。
+    - [x] 20.1.2 `applySuggestions` 应用每条建议后，仅对受影响资源做增量 slot 更新，不再触发全量 `runAudit`。
+    - [x] 20.1.3 `runAudit` 在 PASS 间汇总审计时仍可调用，但频率从「每条建议」降为「每个 PASS 结束时」。
+    - [x] 20.1.4 执行 `npm run build` 验证通过，排期结果与优化前行为一致。
+
+- [x] **DONE** **20.2 [PERF-02] `HOLIDAYS` / `SPECIAL_WORKDAYS` 改为 `Set<string>` O(1) 查找**
+    - [x] 20.2.1 在 `dateUtils.ts` 模块初始化时，将 `HOLIDAYS` 和 `SPECIAL_WORKDAYS` 数组转为 `Set<string>`。
+    - [x] 20.2.2 `isWorkingDay` 中的 `.includes()` 调用改为 `.has()`。
+    - [x] 20.2.3 `updateHolidaysConfig` 函数同步维护 Set 引用。
+    - [x] 20.2.4 执行 `npm run build` 验证通过。
+
+### P1 — 近期执行（准确性 & 中等性能）
+
+- [x] **DONE** **20.3 [PERF-03] 消除 `generateResourceCalendar` 重复构建**
+    - [x] 20.3.1 将 calendar 矩阵作为调度会话共享状态（与 PERF-01 的 Map 合并），`findEarliestFitDate` 直接复用已有矩阵，不再独立构建。
+    - [x] 20.3.2 执行 `npm run build` 验证通过。
+
+- [x] **DONE** **20.4 [ACCURACY-01] 修正测试准入日期为开发跨度中点（对齐 PRD § 3.3.3）**
+    - [x] 20.4.1 修改 `calculateTestStartDate`：遍历所有 dev 分配，取 `earliest_start` 和 `latest_end`。
+    - [x] 20.4.2 计算中点日期 `midpoint = earliest_start + (latest_end - earliest_start) / 2`，向前取最近工作日。
+    - [x] 20.4.3 以中点日期作为测试最早准入，替代当前的「最早开发开始日期」逻辑。
+    - [x] 20.4.4 执行 `npm run build` 验证，测试分配 `startDate` >= dev 时间跨度中点。
+
+- [x] **DONE** **20.5 [ROBUST-01] AI 返回结果增加 Schema 验证与过滤**
+    - [x] 20.5.1 在 `services/ai.ts` 的 `extractJsonArray` 返回前，过滤不合法条目。
+    - [x] 20.5.2 合法范围：`projectId > 0`、`resourceId > 0`、`allocatedMd >= 1`、`allocationPercentage ∈ [1, 200]`。
+    - [x] 20.5.3 非法条目以 `console.warn('[AI Schema] invalid entry:', entry)` 输出。
+    - [x] 20.5.4 执行 `npm run build` 验证通过。
+
+### P2 — 计划执行（健壮性 & 边界准确性）
+
+- [x] **DONE** **20.6 [ROBUST-02] 用 `AbortController` 实现 fetch 即时中断**
+    - [x] 20.6.1 在 `SchedulingContext` 中增加 `abortControllerRef`，每次排期开始时创建新实例。
+    - [x] 20.6.2 `callAI` 函数签名增加 `signal?: AbortSignal` 参数，传入 `fetch` 的第二个参数。
+    - [x] 20.6.3 `stopScheduling` 在设置 `stopRequestedRef` 同时调用 `abortControllerRef.current?.abort()`。
+    - [x] 20.6.4 处理 `AbortError`，与 `MANUAL_STOP` 同路径处理，不弹出错误弹窗。
+    - [x] 20.6.5 执行 `npm run build` 验证通过。
+
+- [x] **DONE** **20.7 [ACCURACY-02] 放宽 PASS 2 回滚条件，覆盖 dev 严重欠配场景**
+    - [x] 20.7.1 在现有回滚条件基础上，增加补充条件：`dev 已排 < devTotalMd × 0.5 && testGap === testTotalMd`。
+    - [x] 20.7.2 执行 `npm run build` 并手动验证：dev 仅分配 30% 且 test 完全未排的项目可被正确回滚。
+
+- [x] **DONE** **20.8 [ACCURACY-03] Cap 公式统一精度，仅在最终写入时取整**
+    - [x] 20.8.1 `runAudit` 中 `devGap`、`testGap`、`idleMd` 内部计算保留浮点数。
+    - [x] 20.8.2 `applySuggestions` 内 `finalMd` 计算时对浮点 cap 取 `Math.ceil` 后再与 1 比较。
+    - [x] 20.8.3 写入 IndexedDB 和 UI 显示前统一执行 `Math.round`。
+    - [x] 20.8.4 执行 `npm run build` 验证通过。
+
+### P3 — 酌情执行（Token 成本 & 低频性能）
+
+- [x] **DONE** **20.9 [COST-01] 裁剪发送 AI 的资源 JSON，减少 Token 消耗**
+    - [x] 20.9.1 `scheduleSummary` 字段超过 200 字符时，截断为最近 3 个 Free Window 信息。
+    - [x] 20.9.2 确认 dev pass 只传开发人员、test pass 只传测试人员（当前外层已过滤，确认一致）。
+    - [x] 20.9.3 执行 `npm run build` 验证通过。
+
+- [x] **DONE** **20.10 [PERF-04] `getWorkingDays` 预计算，避免重复逐日遍历**
+    - [x] 20.10.1 调度开始时，预先生成排期窗口内的工作日 `Set<string>`（`workingDaySet`）。
+    - [x] 20.10.2 `getWorkingDays` 接受可选的 `workingDaySet` 参数，命中时直接过滤计数而非逐日调用 `isWorkingDay`。
+    - [x] 20.10.3 执行 `npm run build` 验证通过，工作日计数结果与原实现一致。
+
+## 阶段二十一：数据持久化与交互健壮性加固 (Phase 21: Persistence & UI Robustness)
+
+### P0 — 关键修复 (Persistence)
+
+- [x] **DONE** **21.1 [FIX-01] 修复 Dexie Schema 演进导致的删表 Bug**
+    - [x] 21.1.1 在 `db/index.ts` 的所有版本定义中显式包含全量 Table 定义，防止升级时丢表。
+- [x] **DONE** **21.2 [FIX-02] 稳定扩展 ID，保护 Origin 存储**
+    - [x] 21.2.1 从私钥提取公钥并配置到 `manifest.json` 的 `key` 字段，确保 Extension ID 恒定。
+
+### P1 — 体验优化 (UI/UX)
+
+- [x] **DONE** **21.3 [UI-01] 抽象化通用 ErrorModal 组件**
+    - [x] 21.3.1 封装 `ErrorModal.tsx`，支持结构化报错展示。
+- [x] **DONE** **21.4 [UI-02] 全系统报错反馈升级**
+    - [x] 21.4.1 在项目、人员、技能导入入口全面集成 `ErrorModal`。
+    - [x] 21.4.2 确保报错同步输出至 Console 详细日志。
+
+### P2 — 文档归档 (Docs)
+
+- [x] **DONE** **21.5 [DOC-01] 更新 PRD 与 Changelog**
+    - [x] 21.5.1 同步 3.3.9 和 3.3.10 章节至 `intelligent-resource-planner.md`。
+    - [x] 21.5.2 更新 `CHANGELOG.md` 归档 v1.0.3 变更。

@@ -6,8 +6,8 @@ import { updateHolidaysConfig, HOLIDAYS as defaultHolidays, SPECIAL_WORKDAYS as 
 
 export const Holidays = () => {
   const settings = useLiveQuery(() => db.settings.toArray());
-  const [holidays, setHolidays] = useState<string[]>(defaultHolidays);
-  const [specialWorkdays, setSpecialWorkdays] = useState<string[]>(defaultSpecialWorkdays);
+  const [holidays, setHolidays] = useState<string[]>(Array.from(defaultHolidays));
+  const [specialWorkdays, setSpecialWorkdays] = useState<string[]>(Array.from(defaultSpecialWorkdays));
   const [newHoliday, setNewHoliday] = useState('');
   const [newSpecialWorkday, setNewSpecialWorkday] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -21,8 +21,8 @@ export const Holidays = () => {
       
       // Update the global configuration in dateUtils when settings are loaded
       updateHolidaysConfig(
-        hSetting ? hSetting.value : defaultHolidays,
-        swSetting ? swSetting.value : defaultSpecialWorkdays
+        hSetting ? hSetting.value : Array.from(defaultHolidays),
+        swSetting ? swSetting.value : Array.from(defaultSpecialWorkdays)
       );
     }
   }, [settings]);

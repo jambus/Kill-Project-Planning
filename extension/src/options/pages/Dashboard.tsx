@@ -2,16 +2,24 @@ import { useState, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { useScheduling } from '../../context/SchedulingContext';
-import { Users, ChevronDown, ArrowRight, ClipboardList, AlertTriangle, FileWarning, Search, TriangleAlert, User, Briefcase, RefreshCcw, CheckCircle2, Settings2, Zap, X } from 'lucide-react';
+import { Users, ChevronDown, ChevronUp, ArrowRight, ClipboardList, AlertTriangle, FileWarning, Search, TriangleAlert, User, Briefcase, RefreshCcw, CheckCircle2, Settings2, Zap, X, Play } from 'lucide-react';
 import { calculateMonthlyMD, getWorkingDays } from '../../utils/dateUtils';
 
 export const Dashboard = () => {
   const projects = useLiveQuery(() => db.projects.toArray());
   const resources = useLiveQuery(() => db.resources.toArray());
   const allocations = useLiveQuery(() => db.allocations.toArray());
+  const operations = useLiveQuery(() => db.productOperations.toArray());
   
   const { isScheduling, scheduleStatus, currentStep, error, strategy, setStrategy, handleGenerateSchedule, stopScheduling, clearError } = useScheduling();
   const [groupMode, setGroupMode] = useState<'resource' | 'project'>('resource');
+
+  // Collapse states
+  const [isScheduledExpanded, setIsScheduledExpanded] = useState(true);
+  const [isMainTableExpanded, setIsMainTableExpanded] = useState(true);
+  const [isGapsExpanded, setIsGapsExpanded] = useState(true);
+  const [isIdleExpanded, setIsIdleExpanded] = useState(true);
+  const [isPendingExpanded, setIsPendingExpanded] = useState(false);
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -173,18 +181,32 @@ export const Dashboard = () => {
               <span>停止排期</span>
             </button>
           ) : (
-            <button 
-              onClick={() => handleGenerateSchedule(selectedYear, startMonth, endMonth)}
-              disabled={isScheduling || !readyProjects.length || !resources?.length}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg ${
-                isScheduling 
-                  ? 'bg-blue-100 text-blue-400 cursor-not-allowed shadow-none' 
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white shadow-blue-100'
-              }`}
-            >
-              <Zap size={16} className={isScheduling ? "animate-pulse" : ""} />
-              <span>一键 AI 智能排期</span>
-            </button>
+            <div className="flex items-center space-x-2">
+              <button 
+                onClick={() => handleGenerateSchedule(selectedYear, startMonth, endMonth, false)}
+                disabled={isScheduling || !readyProjects.length || !resources?.length}
+                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg ${
+                  isScheduling 
+                    ? 'bg-blue-100 text-blue-400 cursor-not-allowed shadow-none' 
+                    : 'bg-white text-blue-600 border border-blue-100 hover:bg-blue-50 shadow-blue-50'
+                }`}
+              >
+                <Play size={16} />
+                <span>继续排期</span>
+              </button>
+              <button 
+                onClick={() => handleGenerateSchedule(selectedYear, startMonth, endMonth, true)}
+                disabled={isScheduling || !readyProjects.length || !resources?.length}
+                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg ${
+                  isScheduling 
+                    ? 'bg-blue-100 text-blue-400 cursor-not-allowed shadow-none' 
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white shadow-blue-100'
+                }`}
+              >
+                <Zap size={16} className={isScheduling ? "animate-pulse" : ""} />
+                <span>一键 AI 智能排期</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -246,59 +268,76 @@ export const Dashboard = () => {
 
       {/* Scheduled Projects Box */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 bg-blue-50/20 flex justify-between items-center">
+        <div 
+          className="p-4 border-b border-gray-100 bg-blue-50/20 flex justify-between items-center cursor-pointer hover:bg-blue-50/40 transition-colors"
+          onClick={() => setIsScheduledExpanded(!isScheduledExpanded)}
+        >
           <h3 className="font-bold text-gray-900 text-sm flex items-center space-x-2">
             <CheckCircle2 size={16} className="text-green-500" />
             <span>已排项目 (共 {scheduledProjectsList.length} 个)</span>
           </h3>
+          <button className="text-gray-400 hover:text-gray-600 transition-colors">
+            {isScheduledExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </button>
         </div>
-        <div className="p-0 overflow-x-auto">
-          {scheduledProjectsList.length === 0 ? (
-            <p className="text-gray-400 text-center py-8 text-xs italic">当前暂无完整排期的项目</p>
-          ) : (
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-gray-200 text-gray-400 font-black uppercase tracking-widest bg-gray-50/10">
-                  <th className="p-4">项目名称</th>
-                  <th className="p-4">开发负责人</th>
-                  <th className="p-4">测试负责人</th>
-                  <th className="p-4">所有参与人员</th>
-                </tr>
-              </thead>
-              <tbody>
-                {scheduledProjectsList.map((p: any) => (
-                  <tr key={p.id} className="border-b border-gray-100 hover:bg-green-50/10 transition-colors">
-                    <td className="p-4 font-black text-gray-900">{p.name}</td>
-                    <td className="p-4 text-gray-600 font-medium">{p.projectTechLead || '-'}</td>
-                    <td className="p-4 text-gray-600 font-medium">{p.projectQualityLead || '-'}</td>
-                    <td className="p-4">
-                      <div className="flex flex-wrap gap-1">
-                        {p.allPersonnel.split(', ').map((name: string) => (
-                          <span key={name} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md text-[10px] font-bold">
-                            {name}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
+        {isScheduledExpanded && (
+          <div className="p-0 overflow-x-auto animate-in slide-in-from-top-2 duration-200">
+            {scheduledProjectsList.length === 0 ? (
+              <p className="text-gray-400 text-center py-8 text-xs italic">当前暂无完整排期的项目</p>
+            ) : (
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-gray-200 text-gray-400 font-black uppercase tracking-widest bg-gray-50/10">
+                    <th className="p-4">项目名称</th>
+                    <th className="p-4">开发负责人</th>
+                    <th className="p-4">测试负责人</th>
+                    <th className="p-4">所有参与人员</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                </thead>
+                <tbody>
+                  {scheduledProjectsList.map((p: any) => (
+                    <tr key={p.id} className="border-b border-gray-100 hover:bg-green-50/10 transition-colors">
+                      <td className="p-4 font-black text-gray-900">{p.name}</td>
+                      <td className="p-4 text-gray-600 font-medium">{p.projectTechLead || '-'}</td>
+                      <td className="p-4 text-gray-600 font-medium">{p.projectQualityLead || '-'}</td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap gap-1">
+                          {p.allPersonnel.split(', ').map((name: string) => (
+                            <span key={name} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md text-[10px] font-bold">
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 bg-gray-50/30 flex justify-between items-center">
-          <h3 className="font-bold text-gray-900 text-sm">已排期任务详情</h3>
-          <div className="flex bg-gray-100 p-1 rounded-xl">
+        <div 
+          className="p-4 border-b border-gray-100 bg-gray-50/30 flex justify-between items-center cursor-pointer hover:bg-gray-50/50 transition-colors"
+          onClick={() => setIsMainTableExpanded(!isMainTableExpanded)}
+        >
+          <div className="flex items-center space-x-2">
+            <h3 className="font-bold text-gray-900 text-sm">已排期任务详情</h3>
+            <button className="text-gray-400 hover:text-gray-600 transition-colors">
+              {isMainTableExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          </div>
+          <div className="flex bg-gray-100 p-1 rounded-xl" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setGroupMode('resource')} className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${groupMode === 'resource' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}><User size={14} /><span>按人员分组</span></button>
             <button onClick={() => setGroupMode('project')} className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${groupMode === 'project' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}><Briefcase size={14} /><span>按项目分组</span></button>
           </div>
         </div>
-        <div className="p-0 overflow-x-auto">
-          {allocations?.length === 0 ? <p className="text-gray-400 text-center py-16 text-sm font-medium">暂无排期数据</p> : (
+        {isMainTableExpanded && (
+          <div className="p-0 overflow-x-auto animate-in slide-in-from-top-2 duration-200">
+            {allocations?.length === 0 ? <p className="text-gray-400 text-center py-16 text-sm font-medium">暂无排期数据</p> : (
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-gray-200 text-gray-400 font-black uppercase tracking-widest bg-gray-50/10">
@@ -311,11 +350,15 @@ export const Dashboard = () => {
               <tbody>
                 {groupMode === 'resource' ? allocations?.map((alloc) => {
                   const resource = resources?.find(r => Number(r.id) === Number(alloc.resourceId));
-                  const project = projects?.find(p => Number(p.id) === Number(alloc.projectId));
+                  const isOp = Number(alloc.projectId) <= -1000000;
+                  const opId = isOp ? -Number(alloc.projectId) - 1000000 : null;
+                  const operation = isOp ? operations?.find(o => Number(o.id) === opId) : null;
+                  const project = isOp ? null : projects?.find(p => Number(p.id) === Number(alloc.projectId));
+                  const projName = isOp ? `[运维] ${operation?.productName || 'Unknown'}` : (project?.name || 'Unknown');
                   return (
                     <tr key={alloc.id} className="border-b border-gray-100 hover:bg-blue-50/20 transition-colors">
                       <td className="p-4 border-r border-gray-50 bg-gray-50/5"><div className="font-black text-gray-900">{resource?.name || 'Unknown'}</div><div className="text-[9px] text-gray-400 font-bold uppercase mt-0.5">{resource?.role}</div></td>
-                      <td className="p-4"><div className="text-blue-600 font-black leading-tight">{project?.name || 'Unknown'}</div><div className="text-[10px] text-gray-400 mt-1 font-medium">{alloc.startDate} ~ {alloc.endDate}</div></td>
+                      <td className="p-4"><div className="text-blue-600 font-black leading-tight">{projName}</div><div className="text-[10px] text-gray-400 mt-1 font-medium">{alloc.startDate} ~ {alloc.endDate}</div></td>
                       <td className="p-4 text-center"><span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded-md text-[9px] font-black border border-green-100">{alloc.allocationPercentage}%</span></td>
                       {displayMonths.map(m => {
                         const md = Math.round(calculateMonthlyMD(alloc.startDate, alloc.endDate, alloc.allocationPercentage, m.year, m.month));
@@ -323,33 +366,65 @@ export const Dashboard = () => {
                       })}
                     </tr>
                   );
-                }) : projects?.filter(p => allocations?.some(a => Number(a.projectId) === Number(p.id))).map(p => {
-                  const projectAllocations = allocations?.filter(a => Number(a.projectId) === Number(p.id)) || [];
-                  return projectAllocations.map((alloc, idx) => {
-                    const resource = resources?.find(r => Number(r.id) === Number(alloc.resourceId));
-                    return (
-                      <tr key={alloc.id} className={`border-b border-gray-100 hover:bg-indigo-50/20 transition-colors ${idx === 0 ? 'border-t-2 border-t-gray-100' : ''}`}>
-                        <td className="p-4 border-r border-gray-50 bg-indigo-50/5">{idx === 0 && <div className="font-black text-indigo-700 leading-tight">{p.name}</div>}</td>
-                        <td className="p-4"><div className="font-bold text-gray-900">{resource?.name || 'Unknown'}</div><div className="text-[9px] text-gray-400 font-bold uppercase">{resource?.role}</div></td>
-                        <td className="p-4 text-center"><span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded-md text-[9px] font-black border border-green-100">{alloc.allocationPercentage}%</span></td>
-                        {displayMonths.map(m => {
-                          const md = Math.round(calculateMonthlyMD(alloc.startDate, alloc.endDate, alloc.allocationPercentage, m.year, m.month));
-                          return <td key={`${m.year}-${m.month}`} className={`p-4 text-center font-mono font-black border-l border-gray-50/50 ${md > 0 ? 'text-gray-900 bg-blue-50/10' : 'text-gray-200'}`}>{md > 0 ? md : '-'}</td>;
-                        })}
-                      </tr>
-                    );
-                  });
-                })}
+                }) : [
+                  ...(projects?.filter(p => allocations?.some(a => Number(a.projectId) === Number(p.id))).map(p => {
+                    const projectAllocations = allocations?.filter(a => Number(a.projectId) === Number(p.id)) || [];
+                    return projectAllocations.map((alloc, idx) => {
+                      const resource = resources?.find(r => Number(r.id) === Number(alloc.resourceId));
+                      return (
+                        <tr key={alloc.id} className={`border-b border-gray-100 hover:bg-indigo-50/20 transition-colors ${idx === 0 ? 'border-t-2 border-t-gray-100' : ''}`}>
+                          <td className="p-4 border-r border-gray-50 bg-indigo-50/5">{idx === 0 && <div className="font-black text-indigo-700 leading-tight">{p.name}</div>}</td>
+                          <td className="p-4"><div className="font-bold text-gray-900">{resource?.name || 'Unknown'}</div><div className="text-[9px] text-gray-400 font-bold uppercase">{resource?.role}</div></td>
+                          <td className="p-4 text-center"><span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded-md text-[9px] font-black border border-green-100">{alloc.allocationPercentage}%</span></td>
+                          {displayMonths.map(m => {
+                            const md = Math.round(calculateMonthlyMD(alloc.startDate, alloc.endDate, alloc.allocationPercentage, m.year, m.month));
+                            return <td key={`${m.year}-${m.month}`} className={`p-4 text-center font-mono font-black border-l border-gray-50/50 ${md > 0 ? 'text-gray-900 bg-blue-50/10' : 'text-gray-200'}`}>{md > 0 ? md : '-'}</td>;
+                          })}
+                        </tr>
+                      );
+                    });
+                  }) || []),
+                  ...(operations?.filter(op => allocations?.some(a => Number(a.projectId) === -(Number(op.id) + 1000000))).map(op => {
+                    const opAllocations = allocations?.filter(a => Number(a.projectId) === -(Number(op.id) + 1000000)) || [];
+                    return opAllocations.map((alloc, idx) => {
+                      const resource = resources?.find(r => Number(r.id) === Number(alloc.resourceId));
+                      return (
+                        <tr key={alloc.id} className={`border-b border-gray-100 hover:bg-indigo-50/20 transition-colors ${idx === 0 ? 'border-t-2 border-t-gray-100' : ''}`}>
+                          <td className="p-4 border-r border-gray-50 bg-indigo-50/5">{idx === 0 && <div className="font-black text-indigo-700 leading-tight">[运维] {op.productName}</div>}</td>
+                          <td className="p-4"><div className="font-bold text-gray-900">{resource?.name || 'Unknown'}</div><div className="text-[9px] text-gray-400 font-bold uppercase">{resource?.role}</div></td>
+                          <td className="p-4 text-center"><span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded-md text-[9px] font-black border border-green-100">{alloc.allocationPercentage}%</span></td>
+                          {displayMonths.map(m => {
+                            const md = Math.round(calculateMonthlyMD(alloc.startDate, alloc.endDate, alloc.allocationPercentage, m.year, m.month));
+                            return <td key={`${m.year}-${m.month}`} className={`p-4 text-center font-mono font-black border-l border-gray-50/50 ${md > 0 ? 'text-gray-900 bg-blue-50/10' : 'text-gray-200'}`}>{md > 0 ? md : '-'}</td>;
+                          })}
+                        </tr>
+                      );
+                    });
+                  }) || [])
+                ]}
               </tbody>
             </table>
           )}
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-6 mt-8">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-orange-100 bg-orange-50/50"><h3 className="font-bold text-orange-900 text-sm flex items-center space-x-2"><AlertTriangle size={16} /><span>待跟进项目 (资源未完全满足)</span></h3></div>
-          <div className="p-0">{(!projectGaps.length) ? <p className="text-gray-400 text-center py-8 text-xs font-medium italic">所有项目均已获得足额排期</p> : (
+          <div 
+            className="p-4 border-b border-orange-100 bg-orange-50/50 flex justify-between items-center cursor-pointer hover:bg-orange-50/80 transition-colors"
+            onClick={() => setIsGapsExpanded(!isGapsExpanded)}
+          >
+            <h3 className="font-bold text-orange-900 text-sm flex items-center space-x-2">
+              <AlertTriangle size={16} />
+              <span>待跟进项目 (资源未完全满足)</span>
+            </h3>
+            <button className="text-orange-400 hover:text-orange-600 transition-colors">
+              {isGapsExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          </div>
+          {isGapsExpanded && (
+          <div className="p-0 animate-in slide-in-from-top-2 duration-200">{(!projectGaps.length) ? <p className="text-gray-400 text-center py-8 text-xs font-medium italic">所有项目均已获得足额排期</p> : (
             <table className="w-full text-left border-collapse text-xs">
               <thead><tr className="border-b border-gray-100 text-gray-400 font-black uppercase tracking-tighter bg-gray-50/20"><th className="p-3">项目名称</th><th className="p-3 text-center text-orange-600">开发缺口</th><th className="p-3 text-center text-teal-600">测试缺口</th></tr></thead>
               <tbody>{projectGaps.map(p => (
@@ -361,11 +436,24 @@ export const Dashboard = () => {
               ))}</tbody>
             </table>
           )}</div>
+          )}
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-indigo-100 bg-indigo-50/50"><h3 className="font-bold text-indigo-900 text-sm flex items-center space-x-2"><Users size={16} /><span>待补充任务 (人员仍有闲置)</span></h3></div>
-          <div className="p-0">{(!resourceIdle.length) ? <p className="text-gray-400 text-center py-8 text-xs font-medium italic">所有人员均已满载排期</p> : (
+          <div 
+            className="p-4 border-b border-indigo-100 bg-indigo-50/50 flex justify-between items-center cursor-pointer hover:bg-indigo-50/80 transition-colors"
+            onClick={() => setIsIdleExpanded(!isIdleExpanded)}
+          >
+            <h3 className="font-bold text-indigo-900 text-sm flex items-center space-x-2">
+              <Users size={16} />
+              <span>待补充任务 (人员仍有闲置)</span>
+            </h3>
+            <button className="text-indigo-400 hover:text-indigo-600 transition-colors">
+              {isIdleExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          </div>
+          {isIdleExpanded && (
+          <div className="p-0 animate-in slide-in-from-top-2 duration-200">{(!resourceIdle.length) ? <p className="text-gray-400 text-center py-8 text-xs font-medium italic">所有人员均已满载排期</p> : (
             <table className="w-full text-left border-collapse text-xs">
               <thead><tr className="border-b border-gray-100 text-gray-400 font-black uppercase tracking-tighter bg-gray-50/20"><th className="p-3">人员姓名</th><th className="p-3 text-center">闲置天数</th><th className="p-3 text-center">饱和度</th></tr></thead>
               <tbody>{resourceIdle.map(r => (
@@ -377,12 +465,25 @@ export const Dashboard = () => {
               ))}</tbody>
             </table>
           )}</div>
+          )}
         </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-8">
-        <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center space-x-2"><FileWarning size={18} className="text-orange-500" /><h3 className="font-bold text-gray-900 text-sm">待评估项目 (未填写开发/测试工时，不参与排期)</h3></div>
-        <div className="p-0">{pendingProjects.length === 0 ? <p className="text-gray-400 text-center py-8 text-xs italic">暂无待评估项目</p> : (
+        <div 
+          className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center cursor-pointer hover:bg-gray-100/80 transition-colors"
+          onClick={() => setIsPendingExpanded(!isPendingExpanded)}
+        >
+          <div className="flex items-center space-x-2">
+            <FileWarning size={18} className="text-orange-500" />
+            <h3 className="font-bold text-gray-900 text-sm">待评估项目 (未填写开发/测试工时，不参与排期)</h3>
+          </div>
+          <button className="text-gray-400 hover:text-gray-600 transition-colors">
+            {isPendingExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </button>
+        </div>
+        {isPendingExpanded && (
+        <div className="p-0 animate-in slide-in-from-top-2 duration-200">{pendingProjects.length === 0 ? <p className="text-gray-400 text-center py-8 text-xs italic">暂无待评估项目</p> : (
           <table className="w-full text-left border-collapse text-xs">
             <thead><tr className="border-b border-gray-100 text-gray-400 font-black uppercase tracking-widest bg-gray-50/10"><th className="p-3">项目名称</th><th className="p-3">业务负责人</th><th className="p-3">优先级</th><th className="p-3">状态</th><th className="p-3">备注</th></tr></thead>
             <tbody>{pendingProjects.map(p => (
@@ -396,6 +497,7 @@ export const Dashboard = () => {
             ))}</tbody>
           </table>
         )}</div>
+        )}
       </div>
     </div>
   );
