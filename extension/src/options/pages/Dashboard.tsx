@@ -9,6 +9,7 @@ export const Dashboard = () => {
   const projects = useLiveQuery(() => db.projects.toArray());
   const resources = useLiveQuery(() => db.resources.toArray());
   const allocations = useLiveQuery(() => db.allocations.toArray());
+  const operations = useLiveQuery(() => db.productOperations.toArray());
   
   const { isScheduling, scheduleStatus, currentStep, error, strategy, setStrategy, handleGenerateSchedule, stopScheduling, clearError } = useScheduling();
   const [groupMode, setGroupMode] = useState<'resource' | 'project'>('resource');
@@ -325,11 +326,15 @@ export const Dashboard = () => {
               <tbody>
                 {groupMode === 'resource' ? allocations?.map((alloc) => {
                   const resource = resources?.find(r => Number(r.id) === Number(alloc.resourceId));
-                  const project = projects?.find(p => Number(p.id) === Number(alloc.projectId));
+                  const isOp = Number(alloc.projectId) <= -1000000;
+                  const opId = isOp ? -Number(alloc.projectId) - 1000000 : null;
+                  const operation = isOp ? operations?.find(o => Number(o.id) === opId) : null;
+                  const project = isOp ? null : projects?.find(p => Number(p.id) === Number(alloc.projectId));
+                  const projName = isOp ? `[运维] ${operation?.productName || 'Unknown'}` : (project?.name || 'Unknown');
                   return (
                     <tr key={alloc.id} className="border-b border-gray-100 hover:bg-blue-50/20 transition-colors">
                       <td className="p-4 border-r border-gray-50 bg-gray-50/5"><div className="font-black text-gray-900">{resource?.name || 'Unknown'}</div><div className="text-[9px] text-gray-400 font-bold uppercase mt-0.5">{resource?.role}</div></td>
-                      <td className="p-4"><div className="text-blue-600 font-black leading-tight">{project?.name || 'Unknown'}</div><div className="text-[10px] text-gray-400 mt-1 font-medium">{alloc.startDate} ~ {alloc.endDate}</div></td>
+                      <td className="p-4"><div className="text-blue-600 font-black leading-tight">{projName}</div><div className="text-[10px] text-gray-400 mt-1 font-medium">{alloc.startDate} ~ {alloc.endDate}</div></td>
                       <td className="p-4 text-center"><span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded-md text-[9px] font-black border border-green-100">{alloc.allocationPercentage}%</span></td>
                       {displayMonths.map(m => {
                         const md = Math.round(calculateMonthlyMD(alloc.startDate, alloc.endDate, alloc.allocationPercentage, m.year, m.month));
@@ -337,23 +342,42 @@ export const Dashboard = () => {
                       })}
                     </tr>
                   );
-                }) : projects?.filter(p => allocations?.some(a => Number(a.projectId) === Number(p.id))).map(p => {
-                  const projectAllocations = allocations?.filter(a => Number(a.projectId) === Number(p.id)) || [];
-                  return projectAllocations.map((alloc, idx) => {
-                    const resource = resources?.find(r => Number(r.id) === Number(alloc.resourceId));
-                    return (
-                      <tr key={alloc.id} className={`border-b border-gray-100 hover:bg-indigo-50/20 transition-colors ${idx === 0 ? 'border-t-2 border-t-gray-100' : ''}`}>
-                        <td className="p-4 border-r border-gray-50 bg-indigo-50/5">{idx === 0 && <div className="font-black text-indigo-700 leading-tight">{p.name}</div>}</td>
-                        <td className="p-4"><div className="font-bold text-gray-900">{resource?.name || 'Unknown'}</div><div className="text-[9px] text-gray-400 font-bold uppercase">{resource?.role}</div></td>
-                        <td className="p-4 text-center"><span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded-md text-[9px] font-black border border-green-100">{alloc.allocationPercentage}%</span></td>
-                        {displayMonths.map(m => {
-                          const md = Math.round(calculateMonthlyMD(alloc.startDate, alloc.endDate, alloc.allocationPercentage, m.year, m.month));
-                          return <td key={`${m.year}-${m.month}`} className={`p-4 text-center font-mono font-black border-l border-gray-50/50 ${md > 0 ? 'text-gray-900 bg-blue-50/10' : 'text-gray-200'}`}>{md > 0 ? md : '-'}</td>;
-                        })}
-                      </tr>
-                    );
-                  });
-                })}
+                }) : [
+                  ...(projects?.filter(p => allocations?.some(a => Number(a.projectId) === Number(p.id))).map(p => {
+                    const projectAllocations = allocations?.filter(a => Number(a.projectId) === Number(p.id)) || [];
+                    return projectAllocations.map((alloc, idx) => {
+                      const resource = resources?.find(r => Number(r.id) === Number(alloc.resourceId));
+                      return (
+                        <tr key={alloc.id} className={`border-b border-gray-100 hover:bg-indigo-50/20 transition-colors ${idx === 0 ? 'border-t-2 border-t-gray-100' : ''}`}>
+                          <td className="p-4 border-r border-gray-50 bg-indigo-50/5">{idx === 0 && <div className="font-black text-indigo-700 leading-tight">{p.name}</div>}</td>
+                          <td className="p-4"><div className="font-bold text-gray-900">{resource?.name || 'Unknown'}</div><div className="text-[9px] text-gray-400 font-bold uppercase">{resource?.role}</div></td>
+                          <td className="p-4 text-center"><span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded-md text-[9px] font-black border border-green-100">{alloc.allocationPercentage}%</span></td>
+                          {displayMonths.map(m => {
+                            const md = Math.round(calculateMonthlyMD(alloc.startDate, alloc.endDate, alloc.allocationPercentage, m.year, m.month));
+                            return <td key={`${m.year}-${m.month}`} className={`p-4 text-center font-mono font-black border-l border-gray-50/50 ${md > 0 ? 'text-gray-900 bg-blue-50/10' : 'text-gray-200'}`}>{md > 0 ? md : '-'}</td>;
+                          })}
+                        </tr>
+                      );
+                    });
+                  }) || []),
+                  ...(operations?.filter(op => allocations?.some(a => Number(a.projectId) === -(Number(op.id) + 1000000))).map(op => {
+                    const opAllocations = allocations?.filter(a => Number(a.projectId) === -(Number(op.id) + 1000000)) || [];
+                    return opAllocations.map((alloc, idx) => {
+                      const resource = resources?.find(r => Number(r.id) === Number(alloc.resourceId));
+                      return (
+                        <tr key={alloc.id} className={`border-b border-gray-100 hover:bg-indigo-50/20 transition-colors ${idx === 0 ? 'border-t-2 border-t-gray-100' : ''}`}>
+                          <td className="p-4 border-r border-gray-50 bg-indigo-50/5">{idx === 0 && <div className="font-black text-indigo-700 leading-tight">[运维] {op.productName}</div>}</td>
+                          <td className="p-4"><div className="font-bold text-gray-900">{resource?.name || 'Unknown'}</div><div className="text-[9px] text-gray-400 font-bold uppercase">{resource?.role}</div></td>
+                          <td className="p-4 text-center"><span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded-md text-[9px] font-black border border-green-100">{alloc.allocationPercentage}%</span></td>
+                          {displayMonths.map(m => {
+                            const md = Math.round(calculateMonthlyMD(alloc.startDate, alloc.endDate, alloc.allocationPercentage, m.year, m.month));
+                            return <td key={`${m.year}-${m.month}`} className={`p-4 text-center font-mono font-black border-l border-gray-50/50 ${md > 0 ? 'text-gray-900 bg-blue-50/10' : 'text-gray-200'}`}>{md > 0 ? md : '-'}</td>;
+                          })}
+                        </tr>
+                      );
+                    });
+                  }) || [])
+                ]}
               </tbody>
             </table>
           )}

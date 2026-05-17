@@ -275,6 +275,83 @@ export const SchedulingProvider = ({ children }: { children: ReactNode }) => {
         return count;
       };
 
+      // PASS 0: Deterministic Ops Scheduling (Product Operations)
+      setScheduleStatus(`⚙️ 阶段零：分配产品运维基础人天...`);
+      const operations = await db.productOperations.toArray();
+      if (operations.length > 0) {
+        const scheduleMonths = endMonth - startMonth + 1;
+        
+        // Identify Leads (Good resources) to protect
+        const leads = new Set<string>();
+        readyProjects.forEach(p => {
+          if (p.projectTechLead) leads.add(p.projectTechLead);
+          if (p.projectQualityLead) leads.add(p.projectQualityLead);
+        });
+
+        for (const op of operations) {
+          checkStop();
+          const targetDevMd = op.monthlyDevMd * scheduleMonths;
+          const targetTestMd = op.monthlyTestMd * scheduleMonths;
+          
+          if (targetDevMd <= 0 && targetTestMd <= 0) continue;
+
+          // Find candidate resources matching the product name
+          const candidates = resources.filter(r => r.skills?.includes(op.productName));
+          
+          // Sort candidates: Non-leads first
+          candidates.sort((a, b) => {
+            const aIsLead = leads.has(a.name) ? 1 : 0;
+            const bIsLead = leads.has(b.name) ? 1 : 0;
+            return aIsLead - bIsLead;
+          });
+
+          const allocateOp = async (targetMd: number, phase: 'dev' | 'test') => {
+            let remainingMd = targetMd;
+            const phaseCandidates = candidates.filter(r => {
+              if (phase === 'dev') return ['前端工程师', '后端工程师', 'APP工程师', '全栈工程师'].includes(r.role);
+              return r.role === '测试工程师';
+            });
+
+            for (const res of phaseCandidates) {
+              if (remainingMd <= 0) break;
+              const { idle } = runAudit([], resources, currentAllocations);
+              const rIdle = idle.find(r => r.id === res.id);
+              if (!rIdle || rIdle.idleMd < 1) continue;
+
+              const allocMd = Math.min(remainingMd, rIdle.idleMd);
+              if (allocMd < 1) continue;
+
+              const perc = 100;
+              const startDate = findEarliestFitDate(res.id!, currentAllocations, defaultStart, perc, resources);
+              if (startDate > scheduleMaxDate) continue;
+
+              let endDate = calculateEndDate(startDate, allocMd, perc);
+              if (endDate > scheduleMaxDate) endDate = scheduleMaxDate;
+
+              const allocToSave = { 
+                resourceId: res.id!, 
+                projectId: -(op.id! + 1000000), // Virtual project ID for Ops
+                allocationPercentage: perc, 
+                startDate, 
+                endDate, 
+                allocationType: phase 
+              };
+              currentAllocations.push(allocToSave);
+              await db.allocations.add({
+                ...allocToSave,
+                allocationPercentage: Math.round(perc)
+              } as any);
+              
+              updateResourceCalendar(res.id!, allocToSave);
+              remainingMd -= allocMd;
+            }
+          };
+
+          if (targetDevMd > 0) await allocateOp(targetDevMd, 'dev');
+          if (targetTestMd > 0) await allocateOp(targetTestMd, 'test');
+        }
+      }
+
       // PASS 1: Priority Mini-Batches
       setCurrentStep(2);
       const BATCH_SIZE = 3;

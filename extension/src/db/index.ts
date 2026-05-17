@@ -61,6 +61,13 @@ export interface Skill {
   type: 'business' | 'technical';
 }
 
+export interface ProductOperation {
+  id?: number;
+  productName: string;
+  monthlyDevMd: number;
+  monthlyTestMd: number;
+}
+
 export class PlannerDatabase extends Dexie {
   resources!: Table<Resource, number>;
   projects!: Table<Project, number>;
@@ -68,6 +75,7 @@ export class PlannerDatabase extends Dexie {
   jiraWorklogs!: Table<JiraWorklog, number>;
   settings!: Table<Setting, string>;
   skills!: Table<Skill, number>;
+  productOperations!: Table<ProductOperation, number>;
 
   constructor() {
     super('IntelligentResourcePlannerDB');
@@ -105,6 +113,16 @@ export class PlannerDatabase extends Dexie {
       jiraWorklogs: '++id, issueId, issueKey, authorAccountId',
       settings: 'key',
       skills: '++id, name, type'
+    });
+
+    this.version(5).stores({
+      resources: '++id, name, role',
+      projects: '++id, name, status, priority, digitalResponsible',
+      allocations: '++id, resourceId, projectId, startDate, endDate, allocationType',
+      jiraWorklogs: '++id, issueId, issueKey, authorAccountId',
+      settings: 'key',
+      skills: '++id, name, type',
+      productOperations: '++id, productName'
     });
   }
 }

@@ -1,4 +1,4 @@
-import { db, type Resource, type Project, type Allocation } from './index';
+import { db, type Resource, type Project, type Allocation, type ProductOperation } from './index';
 
 // ========================
 // Resource Services
@@ -56,3 +56,23 @@ export const getAllocationsByProjectId = async (projectId: number) => {
 export const deleteAllocation = async (id: number) => {
   return await db.allocations.delete(id);
 };
+
+// ========================
+// Product Operation Services
+// ========================
+export const addProductOperation = async (operation: Omit<ProductOperation, 'id'>) => {
+  return await db.productOperations.add(operation);
+};
+
+export const getAllProductOperations = async () => {
+  return await db.productOperations.toArray();
+};
+
+export const updateProductOperation = async (id: number, changes: Partial<ProductOperation>) => {
+  return await db.productOperations.update(id, changes);
+};
+
+export const deleteProductOperation = async (id: number) => {
+  return await db.productOperations.delete(id);
+};
+

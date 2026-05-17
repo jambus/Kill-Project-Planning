@@ -8,6 +8,7 @@ import { Resources } from './pages/Resources';
 import { Settings } from './pages/Settings';
 import { Holidays } from './pages/Holidays';
 import { Skills } from './pages/Skills';
+import { ProductOps } from './pages/ProductOps';
 import { SchedulingProvider } from '../context/SchedulingContext';
 import '../index.css';
 
@@ -24,6 +25,7 @@ if (container) {
               <Route path="projects" element={<Projects />} />
               <Route path="resources" element={<Resources />} />
               <Route path="skills" element={<Skills />} />
+              <Route path="product-ops" element={<ProductOps />} />
               <Route path="holidays" element={<Holidays />} />
               <Route path="settings" element={<Settings />} />
             </Route>

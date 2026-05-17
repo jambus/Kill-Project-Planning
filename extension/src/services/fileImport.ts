@@ -206,3 +206,50 @@ export const importSkillsFromFile = async (files: File | FileList | File[]): Pro
   }
   return 0;
 };
+
+export const importProductOperationsFromFile = async (files: File | FileList | File[]): Promise<number> => {
+  const fileList = 'length' in files ? Array.from(files) : [files];
+  let allOperations: any[] = [];
+
+  for (const file of fileList) {
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = readWorkbook(data);
+      
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) continue;
+
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      if (!rows || rows.length < 2) continue;
+
+      const headers = rows[0].map(h => (h || '').toString());
+      
+      const idxProductName = findColumnIndex(headers, ['product name', '产品名称', '产品']);
+      const idxDevMd = findColumnIndex(headers, ['monthly dev md', '每月开发人天', '开发运维人天']);
+      const idxTestMd = findColumnIndex(headers, ['monthly test md', '每月测试人天', '测试运维人天']);
+
+      const sheetOperations = rows.slice(1).map(row => {
+        if (!row || !Array.isArray(row)) return null;
+        return {
+          productName: idxProductName !== -1 ? row[idxProductName]?.toString() || 'Unknown' : 'Unknown',
+          monthlyDevMd: idxDevMd !== -1 ? Number(row[idxDevMd]) || 0 : 0,
+          monthlyTestMd: idxTestMd !== -1 ? Number(row[idxTestMd]) || 0 : 0,
+        };
+      }).filter((o): o is any => o !== null && o.productName !== 'Unknown');
+
+      allOperations = [...allOperations, ...sheetOperations];
+    } catch (err) {
+      console.error(`Error processing file ${file.name}:`, err);
+      throw err;
+    }
+  }
+
+  await db.productOperations.clear();
+  if (allOperations.length > 0) {
+    await db.productOperations.bulkAdd(allOperations);
+  }
+  return allOperations.length;
+};
+
