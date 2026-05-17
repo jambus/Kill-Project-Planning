@@ -316,3 +316,15 @@
 - [x] **DONE** **21.5 [DOC-01] 更新 PRD 与 Changelog**
     - [x] 21.5.1 同步 3.3.9 和 3.3.10 章节至 `intelligent-resource-planner.md`。
     - [x] 21.5.2 更新 `CHANGELOG.md` 归档 v1.0.3 变更。
+
+## 阶段二十二：v1.0.4 迭代开启 (Phase 22: Version 1.0.4 Initialization)
+
+### P0 — 版本基座 (Infrastructure)
+
+- [x] **DONE** **22.1 [BUMP-01] 全局版本号升级至 1.0.4**
+    - [x] 22.1.1 更新根目录 `package.json`。
+    - [x] 22.1.2 更新 `extension/package.json` 及其 zip/publish 脚本。
+    - [x] 22.1.3 更新 `extension/manifest.json`。
+    - [x] 22.1.4 改进 `Layout.tsx` 侧边栏版本显示：改为通过 `chrome.runtime.getManifest()` 动态获取，消除硬编码。
+- [x] **DONE** **22.2 [LOG-01] 初始化 v1.0.4 Release Note**
+    - [x] 22.2.1 在 `CHANGELOG.md` 中新增 v1.0.4 占位符。
