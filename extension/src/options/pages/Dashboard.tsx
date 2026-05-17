@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { useScheduling } from '../../context/SchedulingContext';
-import { Users, ChevronDown, ArrowRight, ClipboardList, AlertTriangle, FileWarning, Search, TriangleAlert, User, Briefcase, RefreshCcw, CheckCircle2, Settings2, Zap, X, Play } from 'lucide-react';
+import { Users, ChevronDown, ChevronUp, ArrowRight, ClipboardList, AlertTriangle, FileWarning, Search, TriangleAlert, User, Briefcase, RefreshCcw, CheckCircle2, Settings2, Zap, X, Play } from 'lucide-react';
 import { calculateMonthlyMD, getWorkingDays } from '../../utils/dateUtils';
 
 export const Dashboard = () => {
@@ -13,6 +13,13 @@ export const Dashboard = () => {
   
   const { isScheduling, scheduleStatus, currentStep, error, strategy, setStrategy, handleGenerateSchedule, stopScheduling, clearError } = useScheduling();
   const [groupMode, setGroupMode] = useState<'resource' | 'project'>('resource');
+
+  // Collapse states
+  const [isScheduledExpanded, setIsScheduledExpanded] = useState(true);
+  const [isMainTableExpanded, setIsMainTableExpanded] = useState(true);
+  const [isGapsExpanded, setIsGapsExpanded] = useState(true);
+  const [isIdleExpanded, setIsIdleExpanded] = useState(true);
+  const [isPendingExpanded, setIsPendingExpanded] = useState(false);
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -261,59 +268,76 @@ export const Dashboard = () => {
 
       {/* Scheduled Projects Box */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 bg-blue-50/20 flex justify-between items-center">
+        <div 
+          className="p-4 border-b border-gray-100 bg-blue-50/20 flex justify-between items-center cursor-pointer hover:bg-blue-50/40 transition-colors"
+          onClick={() => setIsScheduledExpanded(!isScheduledExpanded)}
+        >
           <h3 className="font-bold text-gray-900 text-sm flex items-center space-x-2">
             <CheckCircle2 size={16} className="text-green-500" />
             <span>已排项目 (共 {scheduledProjectsList.length} 个)</span>
           </h3>
+          <button className="text-gray-400 hover:text-gray-600 transition-colors">
+            {isScheduledExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </button>
         </div>
-        <div className="p-0 overflow-x-auto">
-          {scheduledProjectsList.length === 0 ? (
-            <p className="text-gray-400 text-center py-8 text-xs italic">当前暂无完整排期的项目</p>
-          ) : (
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-gray-200 text-gray-400 font-black uppercase tracking-widest bg-gray-50/10">
-                  <th className="p-4">项目名称</th>
-                  <th className="p-4">开发负责人</th>
-                  <th className="p-4">测试负责人</th>
-                  <th className="p-4">所有参与人员</th>
-                </tr>
-              </thead>
-              <tbody>
-                {scheduledProjectsList.map((p: any) => (
-                  <tr key={p.id} className="border-b border-gray-100 hover:bg-green-50/10 transition-colors">
-                    <td className="p-4 font-black text-gray-900">{p.name}</td>
-                    <td className="p-4 text-gray-600 font-medium">{p.projectTechLead || '-'}</td>
-                    <td className="p-4 text-gray-600 font-medium">{p.projectQualityLead || '-'}</td>
-                    <td className="p-4">
-                      <div className="flex flex-wrap gap-1">
-                        {p.allPersonnel.split(', ').map((name: string) => (
-                          <span key={name} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md text-[10px] font-bold">
-                            {name}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
+        {isScheduledExpanded && (
+          <div className="p-0 overflow-x-auto animate-in slide-in-from-top-2 duration-200">
+            {scheduledProjectsList.length === 0 ? (
+              <p className="text-gray-400 text-center py-8 text-xs italic">当前暂无完整排期的项目</p>
+            ) : (
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-gray-200 text-gray-400 font-black uppercase tracking-widest bg-gray-50/10">
+                    <th className="p-4">项目名称</th>
+                    <th className="p-4">开发负责人</th>
+                    <th className="p-4">测试负责人</th>
+                    <th className="p-4">所有参与人员</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                </thead>
+                <tbody>
+                  {scheduledProjectsList.map((p: any) => (
+                    <tr key={p.id} className="border-b border-gray-100 hover:bg-green-50/10 transition-colors">
+                      <td className="p-4 font-black text-gray-900">{p.name}</td>
+                      <td className="p-4 text-gray-600 font-medium">{p.projectTechLead || '-'}</td>
+                      <td className="p-4 text-gray-600 font-medium">{p.projectQualityLead || '-'}</td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap gap-1">
+                          {p.allPersonnel.split(', ').map((name: string) => (
+                            <span key={name} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md text-[10px] font-bold">
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 bg-gray-50/30 flex justify-between items-center">
-          <h3 className="font-bold text-gray-900 text-sm">已排期任务详情</h3>
-          <div className="flex bg-gray-100 p-1 rounded-xl">
+        <div 
+          className="p-4 border-b border-gray-100 bg-gray-50/30 flex justify-between items-center cursor-pointer hover:bg-gray-50/50 transition-colors"
+          onClick={() => setIsMainTableExpanded(!isMainTableExpanded)}
+        >
+          <div className="flex items-center space-x-2">
+            <h3 className="font-bold text-gray-900 text-sm">已排期任务详情</h3>
+            <button className="text-gray-400 hover:text-gray-600 transition-colors">
+              {isMainTableExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          </div>
+          <div className="flex bg-gray-100 p-1 rounded-xl" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setGroupMode('resource')} className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${groupMode === 'resource' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}><User size={14} /><span>按人员分组</span></button>
             <button onClick={() => setGroupMode('project')} className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${groupMode === 'project' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}><Briefcase size={14} /><span>按项目分组</span></button>
           </div>
         </div>
-        <div className="p-0 overflow-x-auto">
-          {allocations?.length === 0 ? <p className="text-gray-400 text-center py-16 text-sm font-medium">暂无排期数据</p> : (
+        {isMainTableExpanded && (
+          <div className="p-0 overflow-x-auto animate-in slide-in-from-top-2 duration-200">
+            {allocations?.length === 0 ? <p className="text-gray-400 text-center py-16 text-sm font-medium">暂无排期数据</p> : (
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-gray-200 text-gray-400 font-black uppercase tracking-widest bg-gray-50/10">
@@ -381,13 +405,26 @@ export const Dashboard = () => {
               </tbody>
             </table>
           )}
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-6 mt-8">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-orange-100 bg-orange-50/50"><h3 className="font-bold text-orange-900 text-sm flex items-center space-x-2"><AlertTriangle size={16} /><span>待跟进项目 (资源未完全满足)</span></h3></div>
-          <div className="p-0">{(!projectGaps.length) ? <p className="text-gray-400 text-center py-8 text-xs font-medium italic">所有项目均已获得足额排期</p> : (
+          <div 
+            className="p-4 border-b border-orange-100 bg-orange-50/50 flex justify-between items-center cursor-pointer hover:bg-orange-50/80 transition-colors"
+            onClick={() => setIsGapsExpanded(!isGapsExpanded)}
+          >
+            <h3 className="font-bold text-orange-900 text-sm flex items-center space-x-2">
+              <AlertTriangle size={16} />
+              <span>待跟进项目 (资源未完全满足)</span>
+            </h3>
+            <button className="text-orange-400 hover:text-orange-600 transition-colors">
+              {isGapsExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          </div>
+          {isGapsExpanded && (
+          <div className="p-0 animate-in slide-in-from-top-2 duration-200">{(!projectGaps.length) ? <p className="text-gray-400 text-center py-8 text-xs font-medium italic">所有项目均已获得足额排期</p> : (
             <table className="w-full text-left border-collapse text-xs">
               <thead><tr className="border-b border-gray-100 text-gray-400 font-black uppercase tracking-tighter bg-gray-50/20"><th className="p-3">项目名称</th><th className="p-3 text-center text-orange-600">开发缺口</th><th className="p-3 text-center text-teal-600">测试缺口</th></tr></thead>
               <tbody>{projectGaps.map(p => (
@@ -399,11 +436,24 @@ export const Dashboard = () => {
               ))}</tbody>
             </table>
           )}</div>
+          )}
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-indigo-100 bg-indigo-50/50"><h3 className="font-bold text-indigo-900 text-sm flex items-center space-x-2"><Users size={16} /><span>待补充任务 (人员仍有闲置)</span></h3></div>
-          <div className="p-0">{(!resourceIdle.length) ? <p className="text-gray-400 text-center py-8 text-xs font-medium italic">所有人员均已满载排期</p> : (
+          <div 
+            className="p-4 border-b border-indigo-100 bg-indigo-50/50 flex justify-between items-center cursor-pointer hover:bg-indigo-50/80 transition-colors"
+            onClick={() => setIsIdleExpanded(!isIdleExpanded)}
+          >
+            <h3 className="font-bold text-indigo-900 text-sm flex items-center space-x-2">
+              <Users size={16} />
+              <span>待补充任务 (人员仍有闲置)</span>
+            </h3>
+            <button className="text-indigo-400 hover:text-indigo-600 transition-colors">
+              {isIdleExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          </div>
+          {isIdleExpanded && (
+          <div className="p-0 animate-in slide-in-from-top-2 duration-200">{(!resourceIdle.length) ? <p className="text-gray-400 text-center py-8 text-xs font-medium italic">所有人员均已满载排期</p> : (
             <table className="w-full text-left border-collapse text-xs">
               <thead><tr className="border-b border-gray-100 text-gray-400 font-black uppercase tracking-tighter bg-gray-50/20"><th className="p-3">人员姓名</th><th className="p-3 text-center">闲置天数</th><th className="p-3 text-center">饱和度</th></tr></thead>
               <tbody>{resourceIdle.map(r => (
@@ -415,12 +465,25 @@ export const Dashboard = () => {
               ))}</tbody>
             </table>
           )}</div>
+          )}
         </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-8">
-        <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center space-x-2"><FileWarning size={18} className="text-orange-500" /><h3 className="font-bold text-gray-900 text-sm">待评估项目 (未填写开发/测试工时，不参与排期)</h3></div>
-        <div className="p-0">{pendingProjects.length === 0 ? <p className="text-gray-400 text-center py-8 text-xs italic">暂无待评估项目</p> : (
+        <div 
+          className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center cursor-pointer hover:bg-gray-100/80 transition-colors"
+          onClick={() => setIsPendingExpanded(!isPendingExpanded)}
+        >
+          <div className="flex items-center space-x-2">
+            <FileWarning size={18} className="text-orange-500" />
+            <h3 className="font-bold text-gray-900 text-sm">待评估项目 (未填写开发/测试工时，不参与排期)</h3>
+          </div>
+          <button className="text-gray-400 hover:text-gray-600 transition-colors">
+            {isPendingExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </button>
+        </div>
+        {isPendingExpanded && (
+        <div className="p-0 animate-in slide-in-from-top-2 duration-200">{pendingProjects.length === 0 ? <p className="text-gray-400 text-center py-8 text-xs italic">暂无待评估项目</p> : (
           <table className="w-full text-left border-collapse text-xs">
             <thead><tr className="border-b border-gray-100 text-gray-400 font-black uppercase tracking-widest bg-gray-50/10"><th className="p-3">项目名称</th><th className="p-3">业务负责人</th><th className="p-3">优先级</th><th className="p-3">状态</th><th className="p-3">备注</th></tr></thead>
             <tbody>{pendingProjects.map(p => (
@@ -434,6 +497,7 @@ export const Dashboard = () => {
             ))}</tbody>
           </table>
         )}</div>
+        )}
       </div>
     </div>
   );
