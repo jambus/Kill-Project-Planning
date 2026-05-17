@@ -51,6 +51,16 @@ export const ProductOps = () => {
     } else {
       await addProductOperation(data);
     }
+
+    // Auto-add to skills if not exists
+    const existingSkills = await db.skills.toArray();
+    const lowerName = data.productName.toLowerCase();
+    if (!existingSkills.some(s => s.name.toLowerCase() === lowerName)) {
+      await db.skills.add({
+        name: data.productName,
+        type: 'business'
+      });
+    }
     
     setShowModal(false);
   };

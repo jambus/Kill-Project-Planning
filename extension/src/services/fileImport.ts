@@ -249,6 +249,28 @@ export const importProductOperationsFromFile = async (files: File | FileList | F
   await db.productOperations.clear();
   if (allOperations.length > 0) {
     await db.productOperations.bulkAdd(allOperations);
+
+    // Ensure all product names are added as skills if they don't exist
+    const existingSkills = await db.skills.toArray();
+    const existingSkillNames = new Set(existingSkills.map(s => s.name.toLowerCase()));
+    
+    const newSkillsToInsert: any[] = [];
+    const seenNewSkills = new Set<string>();
+
+    for (const op of allOperations) {
+      const lowerName = op.productName.toLowerCase();
+      if (!existingSkillNames.has(lowerName) && !seenNewSkills.has(lowerName)) {
+        seenNewSkills.add(lowerName);
+        newSkillsToInsert.push({
+          name: op.productName,
+          type: 'business'
+        });
+      }
+    }
+
+    if (newSkillsToInsert.length > 0) {
+      await db.skills.bulkAdd(newSkillsToInsert);
+    }
   }
   return allOperations.length;
 };
